@@ -18,26 +18,26 @@
 #include "compress.h"
 #include "prefix.h"
 
-#define ERRORMSG(x) do if (write(fd,(x),strlen(x))) {} while(0)
+#define ERRORMSG(x) fprintf(stderr, (x))
 #define _(x) (x)
 
 #define BUFFER_SIZE 32768
 
 #ifdef HAVE_LIBBZ2
-static void read_bz2(int f, int fd, const char *arg)
+static void read_bz2(int in, int out, const char *arg)
 {
     BZFILE* b;
     int     nBuf;
     char    buf[BUFFER_SIZE];
     int     bzerror;
 
-    b = BZ2_bzReadOpen(&bzerror, fdopen(f,"rb"), 0, 0, NULL, 0);
+    b = BZ2_bzReadOpen(&bzerror, fdopen(in,"rb"), 0, 0, NULL, 0);
     if (bzerror != BZ_OK)
     {
         BZ2_bzReadClose(&bzerror, b);
         // error
         ERRORMSG(_("Invalid/corrupt .bz2 file.\n"));
-        close(fd);
+        close(out);
         return;
     }
 
@@ -45,10 +45,10 @@ static void read_bz2(int f, int fd, const char *arg)
     while (bzerror == BZ_OK)
     {
         nBuf = BZ2_bzRead(&bzerror, b, buf, BUFFER_SIZE);
-        if (write(fd, buf, nBuf)!=nBuf)
+        if (write(out, buf, nBuf)!=nBuf)
         {
             BZ2_bzReadClose(&bzerror, b);
-            close(fd);
+            close(out);
             return;
         }
     }
@@ -61,63 +61,63 @@ static void read_bz2(int f, int fd, const char *arg)
     }
     else
         BZ2_bzReadClose(&bzerror, b);
-    close(fd);
+    close(out);
 }
 
-static void write_bz2(int f, int fd, const char *arg)
+static void write_bz2(int in, int out, const char *arg)
 {
     BZFILE* b;
     int     nBuf;
     char    buf[BUFFER_SIZE];
     int     bzerror;
 
-    b = BZ2_bzWriteOpen(&bzerror, fdopen(f,"wb"), 9, 0, 0);
+    b = BZ2_bzWriteOpen(&bzerror, fdopen(out,"wb"), 9, 0, 0);
     if (bzerror != BZ_OK)
     {
         BZ2_bzWriteClose(&bzerror, b, 0,0,0);
         // error
         // the writer will get smitten with sigpipe
-        close(fd);
+        close(in);
         return;
     }
 
     bzerror = BZ_OK;
-    while ((nBuf=read(fd, buf, BUFFER_SIZE))>0)
+    while ((nBuf=read(in, buf, BUFFER_SIZE))>0)
     {
         BZ2_bzWrite(&bzerror, b, buf, nBuf);
         if (bzerror!=BZ_OK)
         {
             BZ2_bzWriteClose(&bzerror, b, 0,0,0);
-            close(fd);
+            close(in);
             return;
         }
     }
     BZ2_bzWriteClose(&bzerror, b, 0,0,0);
-    close(fd);
+    close(in);
 }
 #endif
 
 #ifdef HAVE_LIBZ
-static void read_gz(int f, int fd, const char *arg)
+static void read_gz(int in, int out, const char *arg)
 {
     gzFile  g;
     int     nBuf;
     char    buf[BUFFER_SIZE];
 
-    g=gzdopen(f, "rb");
+    g=gzdopen(in, "rb");
     if (!g)
     {
         ERRORMSG(_("Invalid/corrupt .gz file.\n"));
-        close(f);
-        close(fd);
+        close(in);
+        close(out);
         return;
     }
     while ((nBuf=gzread(g, buf, BUFFER_SIZE))>0)
     {
-        if (write(fd, buf, nBuf)!=nBuf)
+        if (write(out, buf, nBuf)!=nBuf)
         {
             gzclose(g);
-            close(fd);
+            close(out);
             return;
         }
     }
@@ -127,38 +127,38 @@ static void read_gz(int f, int fd, const char *arg)
         ERRORMSG(_("gzip: Error during decompression.\n"));
     }
     gzclose(g);
-    close(fd);
+    close(out);
 }
 
-static void write_gz(int f, int fd, const char *arg)
+static void write_gz(int in, int out, const char *arg)
 {
     gzFile  g;
     int     nBuf;
     char    buf[BUFFER_SIZE];
 
-    g=gzdopen(f, "wb9");
+    g=gzdopen(out, "wb9");
     if (!g)
     {
-        close(f);
-        close(fd);
+        close(in);
+        close(out);
         return;
     }
-    while ((nBuf=read(fd, buf, BUFFER_SIZE))>0)
+    while ((nBuf=read(in, buf, BUFFER_SIZE))>0)
     {
         if (gzwrite(g, buf, nBuf)!=nBuf)
         {
             gzclose(g);
-            close(fd);
+            close(in);
             return;
         }
     }
     gzclose(g);
-    close(fd);
+    close(in);
 }
 #endif
 
 #ifdef HAVE_LIBLZMA
-static void read_xz(int f, int fd, const char *arg)
+static void read_xz(int in, int out, const char *arg)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
     lzma_stream xz = LZMA_STREAM_INIT;
@@ -169,14 +169,14 @@ static void read_xz(int f, int fd, const char *arg)
     xz.avail_in  = 0;
 
     while (xz.avail_in
-           || (xz.avail_in = read(f, (uint8_t*)(xz.next_in = inbuf), BUFFER_SIZE)) > 0)
+           || (xz.avail_in = read(in, (uint8_t*)(xz.next_in = inbuf), BUFFER_SIZE)) > 0)
     {
         xz.next_out  = outbuf;
         xz.avail_out = sizeof(outbuf);
         if (lzma_code(&xz, LZMA_RUN) != LZMA_OK)
             goto xz_read_lzma_end;
 
-        if (write(fd, outbuf, xz.next_out - outbuf) != xz.next_out - outbuf)
+        if (write(out, outbuf, xz.next_out - outbuf) != xz.next_out - outbuf)
             goto xz_read_lzma_end;
     }
 
@@ -188,7 +188,7 @@ static void read_xz(int f, int fd, const char *arg)
         xz.avail_out = sizeof(outbuf);
         ret = lzma_code(&xz, LZMA_FINISH);
 
-        if (write(fd, outbuf, xz.next_out - outbuf) != xz.next_out - outbuf)
+        if (write(out, outbuf, xz.next_out - outbuf) != xz.next_out - outbuf)
             goto xz_read_lzma_end;
     }
     while (ret == LZMA_OK);
@@ -197,11 +197,11 @@ xz_read_lzma_end:
     lzma_end(&xz);
 
 xz_read_end:
-    close(f);
-    close(fd);
+    close(in);
+    close(out);
 }
 
-static void write_xz(int f, int fd, const char *arg)
+static void write_xz(int in, int out, const char *arg)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
     lzma_stream xz = LZMA_STREAM_INIT;
@@ -212,14 +212,14 @@ static void write_xz(int f, int fd, const char *arg)
     xz.avail_in  = 0;
 
     while (xz.avail_in
-           || (xz.avail_in = read(fd, (uint8_t*)(xz.next_in = inbuf), BUFFER_SIZE)) > 0)
+           || (xz.avail_in = read(in, (uint8_t*)(xz.next_in = inbuf), BUFFER_SIZE)) > 0)
     {
         xz.next_out  = outbuf;
         xz.avail_out = sizeof(outbuf);
         if (lzma_code(&xz, LZMA_RUN) != LZMA_OK)
             goto xz_write_lzma_end;
 
-        if (write(f, outbuf, xz.next_out - outbuf) != xz.next_out - outbuf)
+        if (write(out, outbuf, xz.next_out - outbuf) != xz.next_out - outbuf)
             goto xz_write_lzma_end;
     }
 
@@ -231,7 +231,7 @@ static void write_xz(int f, int fd, const char *arg)
         xz.avail_out = sizeof(outbuf);
         ret = lzma_code(&xz, LZMA_FINISH);
 
-        if (write(f, outbuf, xz.next_out - outbuf) != xz.next_out - outbuf)
+        if (write(out, outbuf, xz.next_out - outbuf) != xz.next_out - outbuf)
             goto xz_write_lzma_end;
     }
     while (ret == LZMA_OK);
@@ -240,13 +240,13 @@ xz_write_lzma_end:
     lzma_end(&xz);
 
 xz_write_end:
-    close(f);
-    close(fd);
+    close(in);
+    close(out);
 }
 #endif
 
 #ifdef HAVE_LIBZSTD
-static void read_zstd(int f, int fd, const char *arg)
+static void read_zstd(int in, int out, const char *arg)
 {
     ZSTD_inBuffer  zin;
     ZSTD_outBuffer zout;
@@ -265,7 +265,7 @@ static void read_zstd(int f, int fd, const char *arg)
         goto zstd_r_error;
 
     size_t s;
-    while ((s = read(f, (void*)zin.src, inbufsz)) > 0)
+    while ((s = read(in, (void*)zin.src, inbufsz)) > 0)
     {
         zin.size = s;
         zin.pos = 0;
@@ -275,7 +275,7 @@ static void read_zstd(int f, int fd, const char *arg)
             size_t w = ZSTD_decompressStream(stream, &zout, &zin);
             if (ZSTD_isError(w))
                 goto zstd_r_error;
-            if (write(fd, zout.dst, zout.pos) != (ssize_t)zout.pos)
+            if (write(out, zout.dst, zout.pos) != (ssize_t)zout.pos)
                 goto zstd_r_error;
         }
     }
@@ -285,11 +285,11 @@ zstd_r_error:
 zstd_r_no_stream:
     free((void*)zin.src);
     free(zout.dst);
-    close(f);
-    close(fd);
+    close(in);
+    close(out);
 }
 
-static void write_zstd(int f, int fd, const char *arg)
+static void write_zstd(int in, int out, const char *arg)
 {
     ZSTD_inBuffer  zin;
     ZSTD_outBuffer zout;
@@ -308,7 +308,7 @@ static void write_zstd(int f, int fd, const char *arg)
         goto zstd_w_error;
 
     size_t s;
-    while ((s = read(fd, (void*)zin.src, inbufsz)) > 0)
+    while ((s = read(in, (void*)zin.src, inbufsz)) > 0)
     {
         zin.size = s;
         zin.pos = 0;
@@ -318,7 +318,7 @@ static void write_zstd(int f, int fd, const char *arg)
             size_t w = ZSTD_compressStream(stream, &zout, &zin);
             if (ZSTD_isError(w))
                 goto zstd_w_error;
-            if (write(f, zout.dst, zout.pos) != (ssize_t)zout.pos)
+            if (write(out, zout.dst, zout.pos) != (ssize_t)zout.pos)
                 goto zstd_w_error;
         }
     }
@@ -326,15 +326,15 @@ static void write_zstd(int f, int fd, const char *arg)
     zout.pos = 0;
     ZSTD_endStream(stream, &zout);
     // no way to handle an error here
-    write(f, zout.dst, zout.pos);
+    write(out, zout.dst, zout.pos);
 
 zstd_w_error:
     ZSTD_freeCStream(stream);
 zstd_w_no_stream:
     free((void*)zin.src);
     free(zout.dst);
-    close(f);
-    close(fd);
+    close(in);
+    close(out);
 }
 #endif
 
