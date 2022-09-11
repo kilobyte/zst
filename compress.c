@@ -24,7 +24,7 @@
 #define BUFFER_SIZE 32768
 
 #ifdef HAVE_LIBBZ2
-static void read_bz2(int in, int out, const char *arg)
+static int read_bz2(int in, int out, const char *arg)
 {
     BZFILE* b;
     int     nBuf;
@@ -38,7 +38,7 @@ static void read_bz2(int in, int out, const char *arg)
         // error
         ERRORMSG(_("Invalid/corrupt .bz2 file.\n"));
         close(out);
-        return;
+        return 1;
     }
 
     bzerror = BZ_OK;
@@ -49,7 +49,7 @@ static void read_bz2(int in, int out, const char *arg)
         {
             BZ2_bzReadClose(&bzerror, b);
             close(out);
-            return;
+            return 1;
         }
     }
     if (bzerror != BZ_STREAM_END)
@@ -61,10 +61,10 @@ static void read_bz2(int in, int out, const char *arg)
     }
     else
         BZ2_bzReadClose(&bzerror, b);
-    close(out);
+    return close(out)==-1 || bzerror!=BZ_STREAM_END;
 }
 
-static void write_bz2(int in, int out, const char *arg)
+static int write_bz2(int in, int out, const char *arg)
 {
     BZFILE* b;
     int     nBuf;
@@ -78,7 +78,7 @@ static void write_bz2(int in, int out, const char *arg)
         // error
         // the writer will get smitten with sigpipe
         close(in);
-        return;
+        return 1;
     }
 
     bzerror = BZ_OK;
@@ -89,7 +89,7 @@ static void write_bz2(int in, int out, const char *arg)
         {
             BZ2_bzWriteClose(&bzerror, b, 0,0,0);
             close(in);
-            return;
+            return 1;
         }
     }
     BZ2_bzWriteClose(&bzerror, b, 0,0,0);
@@ -98,7 +98,7 @@ static void write_bz2(int in, int out, const char *arg)
 #endif
 
 #ifdef HAVE_LIBZ
-static void read_gz(int in, int out, const char *arg)
+static int read_gz(int in, int out, const char *arg)
 {
     gzFile  g;
     int     nBuf;
@@ -110,7 +110,7 @@ static void read_gz(int in, int out, const char *arg)
         ERRORMSG(_("Invalid/corrupt .gz file.\n"));
         close(in);
         close(out);
-        return;
+        return 1;
     }
     while ((nBuf=gzread(g, buf, BUFFER_SIZE))>0)
     {
@@ -118,7 +118,7 @@ static void read_gz(int in, int out, const char *arg)
         {
             gzclose(g);
             close(out);
-            return;
+            return 1;
         }
     }
     if (nBuf)
@@ -127,10 +127,10 @@ static void read_gz(int in, int out, const char *arg)
         ERRORMSG(_("gzip: Error during decompression.\n"));
     }
     gzclose(g);
-    close(out);
+    return close(out)==-1 || nBuf;
 }
 
-static void write_gz(int in, int out, const char *arg)
+static int write_gz(int in, int out, const char *arg)
 {
     gzFile  g;
     int     nBuf;
@@ -141,7 +141,7 @@ static void write_gz(int in, int out, const char *arg)
     {
         close(in);
         close(out);
-        return;
+        return 1;
     }
     while ((nBuf=read(in, buf, BUFFER_SIZE))>0)
     {
@@ -149,16 +149,16 @@ static void write_gz(int in, int out, const char *arg)
         {
             gzclose(g);
             close(in);
-            return;
+            return 1;
         }
     }
-    gzclose(g);
     close(in);
+    return !!gzclose(g);
 }
 #endif
 
 #ifdef HAVE_LIBLZMA
-static void read_xz(int in, int out, const char *arg)
+static int read_xz(int in, int out, const char *arg)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
     lzma_stream xz = LZMA_STREAM_INIT;
@@ -201,7 +201,7 @@ xz_read_end:
     close(out);
 }
 
-static void write_xz(int in, int out, const char *arg)
+static int write_xz(int in, int out, const char *arg)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
     lzma_stream xz = LZMA_STREAM_INIT;
@@ -246,7 +246,7 @@ xz_write_end:
 #endif
 
 #ifdef HAVE_LIBZSTD
-static void read_zstd(int in, int out, const char *arg)
+static int read_zstd(int in, int out, const char *arg)
 {
     ZSTD_inBuffer  zin;
     ZSTD_outBuffer zout;
@@ -286,10 +286,10 @@ zstd_r_no_stream:
     free((void*)zin.src);
     free(zout.dst);
     close(in);
-    close(out);
+    return close(out)==-1;
 }
 
-static void write_zstd(int in, int out, const char *arg)
+static int write_zstd(int in, int out, const char *arg)
 {
     ZSTD_inBuffer  zin;
     ZSTD_outBuffer zout;
@@ -334,7 +334,7 @@ zstd_w_no_stream:
     free((void*)zin.src);
     free(zout.dst);
     close(in);
-    close(out);
+    return close(out)==-1;
 }
 #endif
 
