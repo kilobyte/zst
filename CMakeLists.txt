@@ -20,6 +20,15 @@ find_lib(BZ2 bz2 BZ2_bzBuffToBuffCompress)
 find_lib(LZMA lzma lzma_code)
 find_lib(ZSTD zstd ZSTD_compress)
 
+function(add_flag flag)
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${flag}" PARENT_SCOPE)
+endfunction()
+add_flag(-Wall)
+add_flag(-Werror=format-security)
+add_flag(-Wmissing-declarations)
+add_flag(-Wredundant-decls)
+add_flag(-Wno-parentheses)
+
 configure_file(config.h.cmake ${CMAKE_BINARY_DIR}/config.h)
 
 set(zst_sources
