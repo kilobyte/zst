@@ -1,4 +1,5 @@
 #include "config.h"
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -23,6 +24,11 @@
 
 #define BUFFER_SIZE 32768
 
+static int dupa(int fd)
+{
+    return fcntl(fd, F_DUPFD_CLOEXEC, 0);
+}
+
 #ifdef HAVE_LIBBZ2
 static int read_bz2(int in, int out, const char *arg)
 {
@@ -31,13 +37,12 @@ static int read_bz2(int in, int out, const char *arg)
     char    buf[BUFFER_SIZE];
     int     bzerror;
 
-    b = BZ2_bzReadOpen(&bzerror, fdopen(in,"rb"), 0, 0, NULL, 0);
+    b = BZ2_bzReadOpen(&bzerror, fdopen(dupa(in),"rb"), 0, 0, NULL, 0);
     if (bzerror != BZ_OK)
     {
         BZ2_bzReadClose(&bzerror, b);
         // error
         ERRORMSG(_("Invalid/corrupt .bz2 file.\n"));
-        close(out);
         return 1;
     }
 
@@ -48,7 +53,6 @@ static int read_bz2(int in, int out, const char *arg)
         if (write(out, buf, nBuf)!=nBuf)
         {
             BZ2_bzReadClose(&bzerror, b);
-            close(out);
             return 1;
         }
     }
@@ -58,10 +62,10 @@ static int read_bz2(int in, int out, const char *arg)
         // error
         ERRORMSG("\033[0m");
         ERRORMSG(_("bzip2: Error during decompression.\n"));
+        return 1;
     }
-    else
-        BZ2_bzReadClose(&bzerror, b);
-    return close(out)==-1 || bzerror!=BZ_STREAM_END;
+    BZ2_bzReadClose(&bzerror, b);
+    return bzerror != BZ_OK;
 }
 
 static int write_bz2(int in, int out, const char *arg)
@@ -71,13 +75,10 @@ static int write_bz2(int in, int out, const char *arg)
     char    buf[BUFFER_SIZE];
     int     bzerror;
 
-    b = BZ2_bzWriteOpen(&bzerror, fdopen(out,"wb"), 9, 0, 0);
+    b = BZ2_bzWriteOpen(&bzerror, fdopen(dupa(out),"wb"), 9, 0, 0);
     if (bzerror != BZ_OK)
     {
         BZ2_bzWriteClose(&bzerror, b, 0,0,0);
-        // error
-        // the writer will get smitten with sigpipe
-        close(in);
         return 1;
     }
 
@@ -85,15 +86,14 @@ static int write_bz2(int in, int out, const char *arg)
     while ((nBuf=read(in, buf, BUFFER_SIZE))>0)
     {
         BZ2_bzWrite(&bzerror, b, buf, nBuf);
-        if (bzerror!=BZ_OK)
+        if (bzerror != BZ_OK)
         {
             BZ2_bzWriteClose(&bzerror, b, 0,0,0);
-            close(in);
             return 1;
         }
     }
     BZ2_bzWriteClose(&bzerror, b, 0,0,0);
-    close(in);
+    return bzerror != BZ_OK;
 }
 #endif
 
@@ -104,12 +104,10 @@ static int read_gz(int in, int out, const char *arg)
     int     nBuf;
     char    buf[BUFFER_SIZE];
 
-    g=gzdopen(in, "rb");
+    g=gzdopen(dupa(in), "rb");
     if (!g)
     {
         ERRORMSG(_("Invalid/corrupt .gz file.\n"));
-        close(in);
-        close(out);
         return 1;
     }
     while ((nBuf=gzread(g, buf, BUFFER_SIZE))>0)
@@ -117,7 +115,6 @@ static int read_gz(int in, int out, const char *arg)
         if (write(out, buf, nBuf)!=nBuf)
         {
             gzclose(g);
-            close(out);
             return 1;
         }
     }
@@ -127,7 +124,7 @@ static int read_gz(int in, int out, const char *arg)
         ERRORMSG(_("gzip: Error during decompression.\n"));
     }
     gzclose(g);
-    return close(out)==-1 || nBuf;
+    return !!nBuf;
 }
 
 static int write_gz(int in, int out, const char *arg)
@@ -136,23 +133,17 @@ static int write_gz(int in, int out, const char *arg)
     int     nBuf;
     char    buf[BUFFER_SIZE];
 
-    g=gzdopen(out, "wb9");
+    g=gzdopen(dupa(out), "wb9");
     if (!g)
-    {
-        close(in);
-        close(out);
         return 1;
-    }
     while ((nBuf=read(in, buf, BUFFER_SIZE))>0)
     {
         if (gzwrite(g, buf, nBuf)!=nBuf)
         {
             gzclose(g);
-            close(in);
             return 1;
         }
     }
-    close(in);
     return !!gzclose(g);
 }
 #endif
@@ -162,6 +153,7 @@ static int read_xz(int in, int out, const char *arg)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
     lzma_stream xz = LZMA_STREAM_INIT;
+    lzma_ret ret = 0;
 
     if (lzma_stream_decoder(&xz, UINT64_MAX, LZMA_CONCATENATED) != LZMA_OK)
         goto xz_read_end;
@@ -181,7 +173,6 @@ static int read_xz(int in, int out, const char *arg)
     }
 
     // Flush the stream
-    lzma_ret ret;
     do
     {
         xz.next_out  = outbuf;
@@ -197,14 +188,14 @@ xz_read_lzma_end:
     lzma_end(&xz);
 
 xz_read_end:
-    close(in);
-    close(out);
+    return ret != LZMA_STREAM_END;
 }
 
 static int write_xz(int in, int out, const char *arg)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
     lzma_stream xz = LZMA_STREAM_INIT;
+    lzma_ret ret = 0;
 
     if (lzma_easy_encoder(&xz, 6, LZMA_CHECK_CRC64) != LZMA_OK)
         goto xz_write_end;
@@ -224,7 +215,6 @@ static int write_xz(int in, int out, const char *arg)
     }
 
     // Flush the stream
-    lzma_ret ret;
     do
     {
         xz.next_out  = outbuf;
@@ -240,8 +230,7 @@ xz_write_lzma_end:
     lzma_end(&xz);
 
 xz_write_end:
-    close(in);
-    close(out);
+    return ret == LZMA_STREAM_END;
 }
 #endif
 
@@ -285,8 +274,7 @@ zstd_r_error:
 zstd_r_no_stream:
     free((void*)zin.src);
     free(zout.dst);
-    close(in);
-    return close(out)==-1;
+    return 0;
 }
 
 static int write_zstd(int in, int out, const char *arg)
@@ -333,8 +321,7 @@ zstd_w_error:
 zstd_w_no_stream:
     free((void*)zin.src);
     free(zout.dst);
-    close(in);
-    return close(out)==-1;
+    return 0;
 }
 #endif
 
