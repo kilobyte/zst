@@ -1,4 +1,7 @@
+#define _GNU_SOURCE
+#include <assert.h>
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -20,11 +23,75 @@ static int level;
 static int op;
 static int err;
 
+static compress_info *comp;
+
+static int flink(int dir, int fd, const char *newname)
+{
+    char proclink[26];
+    sprintf(proclink, "/proc/self/fd/%d", fd);
+    int ret = linkat(AT_FDCWD, proclink, dir, newname, AT_SYMLINK_FOLLOW);
+    if (ret && errno==ENOENT)
+        ret = linkat(fd, "", dir, newname, AT_EMPTY_PATH);
+    return ret;
+}
+
 static void do_file(int dir, const char *name, const char *path, int fd)
 {
     printf("%s｢%s｣\n", path, name);
-    if (fd)
+    int out = -1;
+    char *name2 = 0;
+    compress_info *fcomp = comp;
+    if (fd <= 0 || cat)
+        out = 1;
+    else
+    {
+        if (op)
+        {
+            fcomp = comp_from_ext(name, decompressors);
+            if (!fcomp)
+            {
+                fprintf(stderr, PN ": %s: unknown suffix -- ignored\n", name);
+                if (!err)
+                    err = 2;
+                goto closure;
+            }
+            name2 = strndup(name, strlen(name) - strlen(fcomp->ext));
+        }
+        else
+            asprintf(&name2, "%s%s", name, comp->ext);
+        out = openat(dir, ".", O_TMPFILE|O_WRONLY, 0666);
+        if (out == -1)
+        {
+            // TODO: fallback
+            fprintf(stderr, PN ": open: %s: %m\n", name2);
+            goto closure;
+        }
+    }
+
+    if (fcomp->comp(fd, out, 0))
+        err = 1;
+    else if (out > 2)
+    {
+        if (flink(dir, out, name2))
+        {
+            fprintf(stderr, PN ": can't link %s: %m\n", name2);
+            err = 1;
+            goto closure;
+        }
+        if (!keep && unlinkat(dir, name, 0))
+        {
+            fprintf(stderr, PN ": can't remove %s: %m\n", name);
+            err = 1;
+        }
+    }
+
+closure:
+    if (fd > 2)
         close(fd);
+    if (out > 2)
+        close(out);
+    if (name2)
+        free(name2);
 }
 
 #define fail(txt, ...) (fprintf(stderr, PN ": " txt, __VA_ARGS__), err=1, close(dirfd), (void)0)
@@ -110,6 +177,10 @@ int main(int argc, char **argv)
             // error message already given
             exit(1);
         }
+
+    comp = comp_from_ext("@.zst", op? decompressors : compressors);
+    if (!comp)
+        abort();
 
     if (optind >= argc)
         do_file(0, 0, 0, 0);
