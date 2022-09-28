@@ -3,7 +3,9 @@ zst
 *.o
 CMakeCache.txt
 CMakeFiles/
+CTestTestfile.cmake
 Testing/
 Makefile
 cmake_install.cmake
 config.h
+/tests/test-*
