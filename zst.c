@@ -41,7 +41,9 @@ static void do_file(int dir, const char *name, const char *path, int fd)
     int out = -1;
     char *name2 = 0;
     compress_info *fcomp = comp;
-    if (fd <= 0 || cat)
+    if (op == 't')
+        out = -1;
+    else if (fd <= 0 || cat)
         out = 1;
     else
     {

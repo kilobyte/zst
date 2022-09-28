@@ -50,7 +50,7 @@ static int read_bz2(int in, int out, const char *arg)
     while (bzerror == BZ_OK)
     {
         nBuf = BZ2_bzRead(&bzerror, b, buf, BUFFER_SIZE);
-        if (write(out, buf, nBuf)!=nBuf)
+        if (out!=-1 && write(out, buf, nBuf)!=nBuf)
         {
             BZ2_bzReadClose(&bzerror, b);
             return 1;
@@ -112,7 +112,7 @@ static int read_gz(int in, int out, const char *arg)
     }
     while ((nBuf=gzread(g, buf, BUFFER_SIZE))>0)
     {
-        if (write(out, buf, nBuf)!=nBuf)
+        if (out!=-1 && write(out, buf, nBuf)!=nBuf)
         {
             gzclose(g);
             return 1;
@@ -168,7 +168,7 @@ static int read_xz(int in, int out, const char *arg)
         if (lzma_code(&xz, LZMA_RUN) != LZMA_OK)
             goto xz_read_lzma_end;
 
-        if (write(out, outbuf, xz.next_out - outbuf) != xz.next_out - outbuf)
+        if (out!=-1 && write(out, outbuf, xz.next_out - outbuf) != xz.next_out - outbuf)
             goto xz_read_lzma_end;
     }
 
@@ -179,7 +179,7 @@ static int read_xz(int in, int out, const char *arg)
         xz.avail_out = sizeof(outbuf);
         ret = lzma_code(&xz, LZMA_FINISH);
 
-        if (write(out, outbuf, xz.next_out - outbuf) != xz.next_out - outbuf)
+        if (out!=-1 && write(out, outbuf, xz.next_out - outbuf) != xz.next_out - outbuf)
             goto xz_read_lzma_end;
     }
     while (ret == LZMA_OK);
@@ -264,7 +264,7 @@ static int read_zstd(int in, int out, const char *arg)
             size_t w = ZSTD_decompressStream(stream, &zout, &zin);
             if (ZSTD_isError(w))
                 goto zstd_r_error;
-            if (write(out, zout.dst, zout.pos) != (ssize_t)zout.pos)
+            if (out!=-1 && write(out, zout.dst, zout.pos) != (ssize_t)zout.pos)
                 goto zstd_r_error;
         }
     }
