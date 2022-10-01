@@ -1,0 +1,12 @@
+ubuntu_amd64_task:
+  container:
+    image: ubuntu:jammy
+  install_script:
+    - apt-get update
+    - DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
+    - DEBIAN_FRONTEND=noninteractive apt-get -y install cmake libz-dev libbz2-dev liblzma-dev libzstd-dev bzip2 zstd xz-utils
+  build_script:
+    - cmake .
+    - make -j$(getconf _NPROCESSORS_ONLN)
+  test_script:
+    ctest -j$(getconf _NPROCESSORS_ONLN) --output-on-failure
