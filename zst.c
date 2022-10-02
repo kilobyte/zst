@@ -37,10 +37,20 @@ static int flink(int dir, int fd, const char *newname)
 
 static void do_file(int dir, const char *name, const char *path, int fd)
 {
-    printf("%s｢%s｣\n", path, name);
+    fprintf(stderr, "%s｢%s｣\n", path, name);
     int out = -1;
     char *name2 = 0;
     compress_info *fcomp = comp;
+
+    if (op && fd>0 && !(fcomp = comp_from_ext(name, decompressors)))
+    {
+        fprintf(stderr, PN ": %s: unknown suffix -- ignored\n", name);
+        if (!err)
+            err = 2;
+        close(fd);
+        return;
+    }
+
     if (op == 't')
         out = -1;
     else if (fd <= 0 || cat)
@@ -48,17 +58,7 @@ static void do_file(int dir, const char *name, const char *path, int fd)
     else
     {
         if (op)
-        {
-            fcomp = comp_from_ext(name, decompressors);
-            if (!fcomp)
-            {
-                fprintf(stderr, PN ": %s: unknown suffix -- ignored\n", name);
-                if (!err)
-                    err = 2;
-                goto closure;
-            }
             name2 = strndup(name, strlen(name) - strlen(fcomp->ext));
-        }
         else
             asprintf(&name2, "%s%s", name, comp->ext);
         out = openat(dir, ".", O_TMPFILE|O_WRONLY, 0666);
