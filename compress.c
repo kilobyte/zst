@@ -18,11 +18,15 @@
 #endif
 #include "compress.h"
 #include "prefix.h"
+#include "zst.h"
 
 #define ERRORMSG(x) fprintf(stderr, (x))
 #define _(x) (x)
 
 #define BUFFER_SIZE 32768
+
+#define ERRoom(l) do {fprintf(stderr, "%s: %s%s: Out of memory.\n", exe, path, name);goto l;} while (0)
+#define ERRlibc(l) do {fprintf(stderr, "%s: %s%s: %m\n", exe, path, name);goto l;} while (0)
 
 static int dupa(int fd)
 {
@@ -30,7 +34,7 @@ static int dupa(int fd)
 }
 
 #ifdef HAVE_LIBBZ2
-static int read_bz2(int in, int out, const char *arg)
+static int read_bz2(int in, int out, const char *path, const char *name)
 {
     BZFILE* b;
     int     nBuf;
@@ -68,7 +72,7 @@ static int read_bz2(int in, int out, const char *arg)
     return bzerror != BZ_OK;
 }
 
-static int write_bz2(int in, int out, const char *arg)
+static int write_bz2(int in, int out, const char *path, const char *name)
 {
     BZFILE* b;
     int     nBuf;
@@ -98,7 +102,7 @@ static int write_bz2(int in, int out, const char *arg)
 #endif
 
 #ifdef HAVE_LIBZ
-static int read_gz(int in, int out, const char *arg)
+static int read_gz(int in, int out, const char *path, const char *name)
 {
     gzFile  g;
     int     nBuf;
@@ -127,7 +131,7 @@ static int read_gz(int in, int out, const char *arg)
     return !!nBuf;
 }
 
-static int write_gz(int in, int out, const char *arg)
+static int write_gz(int in, int out, const char *path, const char *name)
 {
     gzFile  g;
     int     nBuf;
@@ -149,7 +153,7 @@ static int write_gz(int in, int out, const char *arg)
 #endif
 
 #ifdef HAVE_LIBLZMA
-static int read_xz(int in, int out, const char *arg)
+static int read_xz(int in, int out, const char *path, const char *name)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
     lzma_stream xz = LZMA_STREAM_INIT;
@@ -191,7 +195,7 @@ xz_read_end:
     return ret != LZMA_STREAM_END;
 }
 
-static int write_xz(int in, int out, const char *arg)
+static int write_xz(int in, int out, const char *path, const char *name)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
     lzma_stream xz = LZMA_STREAM_INIT;
@@ -235,93 +239,102 @@ xz_write_end:
 #endif
 
 #ifdef HAVE_LIBZSTD
-static int read_zstd(int in, int out, const char *arg)
+#define ERRzstd(l) do {fprintf(stderr, "%s: %s%s: %s\n", exe, path, name, ZSTD_getErrorName(r));goto l;} while (0)
+
+static int read_zstd(int in, int out, const char *path, const char *name)
 {
+    int err = 1;
     ZSTD_inBuffer  zin;
     ZSTD_outBuffer zout;
     size_t const inbufsz  = ZSTD_DStreamInSize();
+    size_t r;
     zin.src = malloc(inbufsz);
     zout.size = ZSTD_DStreamOutSize();
     zout.dst = malloc(zout.size);
 
     if (!zin.src || !zout.dst)
-        goto zstd_r_no_stream;
+        ERRoom(zstd_r_no_stream);
 
     ZSTD_DStream* const stream = ZSTD_createDStream();
     if (!stream)
-        goto zstd_r_no_stream;
-    if (ZSTD_isError(ZSTD_initDStream(stream)))
-        goto zstd_r_error;
+        ERRoom(zstd_r_no_stream);
+    if (ZSTD_isError(r = ZSTD_initDStream(stream)))
+        ERRzstd(zstd_r_error);
 
-    size_t s;
-    while ((s = read(in, (void*)zin.src, inbufsz)) > 0)
+    while ((r = read(in, (void*)zin.src, inbufsz)))
     {
-        zin.size = s;
+        if (r == -1)
+            ERRlibc(zstd_r_error);
+        zin.size = r;
         zin.pos = 0;
         while (zin.pos < zin.size)
         {
             zout.pos = 0;
-            size_t w = ZSTD_decompressStream(stream, &zout, &zin);
-            if (ZSTD_isError(w))
-                goto zstd_r_error;
+            if (ZSTD_isError(r = ZSTD_decompressStream(stream, &zout, &zin)))
+                ERRzstd(zstd_r_error);
             if (out!=-1 && write(out, zout.dst, zout.pos) != (ssize_t)zout.pos)
-                goto zstd_r_error;
+                ERRlibc(zstd_r_error);
         }
     }
 
+    err = 0;
 zstd_r_error:
     ZSTD_freeDStream(stream);
 zstd_r_no_stream:
     free((void*)zin.src);
     free(zout.dst);
-    return 0;
+    return err;
 }
 
-static int write_zstd(int in, int out, const char *arg)
+static int write_zstd(int in, int out, const char *path, const char *name)
 {
+    int err = 1;
     ZSTD_inBuffer  zin;
     ZSTD_outBuffer zout;
     size_t const inbufsz  = ZSTD_CStreamInSize();
+    size_t r;
     zin.src = malloc(inbufsz);
     zout.size = ZSTD_CStreamOutSize();
     zout.dst = malloc(zout.size);
 
     if (!zin.src || !zout.dst)
-        goto zstd_w_no_stream;
+        ERRoom(zstd_w_no_stream);
 
     ZSTD_CStream* const stream = ZSTD_createCStream();
     if (!stream)
-        goto zstd_w_no_stream;
-    if (ZSTD_isError(ZSTD_initCStream(stream, 3)))
-        goto zstd_w_error;
+        ERRoom(zstd_w_no_stream);
+    if (ZSTD_isError(r = ZSTD_initCStream(stream, 3)))
+        ERRzstd(zstd_w_error);
 
-    size_t s;
-    while ((s = read(in, (void*)zin.src, inbufsz)) > 0)
+    while ((r = read(in, (void*)zin.src, inbufsz)))
     {
-        zin.size = s;
+        if (r == -1)
+            ERRlibc(zstd_w_error);
+        zin.size = r;
         zin.pos = 0;
         while (zin.pos < zin.size)
         {
             zout.pos = 0;
-            size_t w = ZSTD_compressStream(stream, &zout, &zin);
-            if (ZSTD_isError(w))
-                goto zstd_w_error;
+            if (ZSTD_isError(r = ZSTD_compressStream(stream, &zout, &zin)))
+                ERRzstd(zstd_w_error);
             if (write(out, zout.dst, zout.pos) != (ssize_t)zout.pos)
-                goto zstd_w_error;
+                ERRlibc(zstd_w_error);
         }
     }
 
     zout.pos = 0;
-    ZSTD_endStream(stream, &zout);
-    // no way to handle an error here
-    write(out, zout.dst, zout.pos);
+    if (ZSTD_isError(r = ZSTD_endStream(stream, &zout)))
+        ERRzstd(zstd_w_error);
+    if (write(out, zout.dst, zout.pos) < r)
+        ERRlibc(zstd_w_error);
 
+    err = 0;
 zstd_w_error:
     ZSTD_freeCStream(stream);
 zstd_w_no_stream:
     free((void*)zin.src);
     free(zout.dst);
-    return 0;
+    return err;
 }
 #endif
 

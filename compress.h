@@ -1,4 +1,4 @@
-typedef int(compress_func)(int,int,const char*);
+typedef int(compress_func)(int,int,const char*,const char*);
 
 typedef struct
 {

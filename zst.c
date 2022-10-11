@@ -10,9 +10,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "compress.h"
+#include "zst.h"
 
 #define die(...) do {fprintf(stderr, __VA_ARGS__); exit(1);} while(0)
-#define PN "zst"
+
+const char *exe;
 
 static bool cat;
 static bool force;
@@ -44,7 +46,7 @@ static void do_file(int dir, const char *name, const char *path, int fd)
 
     if (op && fd>0 && !(fcomp = comp_from_ext(name, decompressors)))
     {
-        fprintf(stderr, PN ": %s: unknown suffix -- ignored\n", name);
+        fprintf(stderr, "%s: %s: unknown suffix -- ignored\n", exe, name);
         if (!err)
             err = 2;
         close(fd);
@@ -65,24 +67,24 @@ static void do_file(int dir, const char *name, const char *path, int fd)
         if (out == -1)
         {
             // TODO: fallback
-            fprintf(stderr, PN ": open: %s: %m\n", name2);
+            fprintf(stderr, "%s: open: %s: %m\n", exe, name2);
             goto closure;
         }
     }
 
-    if (fcomp->comp(fd, out, 0))
+    if (fcomp->comp(fd, out, path, name))
         err = 1;
     else if (out > 2)
     {
         if (flink(dir, out, name2))
         {
-            fprintf(stderr, PN ": can't link %s: %m\n", name2);
+            fprintf(stderr, "%s: can't link %s: %m\n", exe, name2);
             err = 1;
             goto closure;
         }
         if (!keep && unlinkat(dir, name, 0))
         {
-            fprintf(stderr, PN ": can't remove %s: %m\n", name);
+            fprintf(stderr, "%s: can't remove %s: %m\n", exe, name);
             err = 1;
         }
     }
@@ -96,7 +98,7 @@ closure:
         free(name2);
 }
 
-#define fail(txt, ...) (fprintf(stderr, PN ": " txt, __VA_ARGS__), err=1, close(dirfd), (void)0)
+#define fail(txt, ...) (fprintf(stderr, "%s: " txt, exe, __VA_ARGS__), err=1, close(dirfd), (void)0)
 
 // may be actually a file
 static void do_dir(int dir, const char *name, const char *path)
@@ -142,6 +144,9 @@ static void do_dir(int dir, const char *name, const char *path)
 
 int main(int argc, char **argv)
 {
+    exe = strrchr(argv[0], '/');
+    exe = exe? exe+1 : argv[0];
+
     int opt;
     while ((opt = getopt(argc, argv, "cdfklnqrth123456789")) != -1)
         switch (opt)
@@ -159,7 +164,7 @@ int main(int argc, char **argv)
             keep = 1;
             break;
         case 'l':
-            die(PN ": -l: unsupported\n");
+            die("%s: -l: unsupported\n", exe);
         case 'n':
             // silently ignored
             break;
@@ -185,7 +190,7 @@ int main(int argc, char **argv)
         abort();
 
     if (optind >= argc)
-        do_file(0, 0, 0, 0);
+        do_file(-1, "stdin", "", 0);
     else
         for (; optind < argc; optind++)
             do_dir(AT_FDCWD, argv[optind], "");
