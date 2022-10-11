@@ -1,4 +1,5 @@
 #include "config.h"
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
@@ -33,6 +34,22 @@ static int dupa(int fd)
     return fcntl(fd, F_DUPFD_CLOEXEC, 0);
 }
 
+static int rewrite(int fd, const void *buf, size_t len)
+{
+    while (len)
+    {
+        size_t done = write(fd, buf, len);
+        if (done == -1)
+            if (errno == EINTR)
+                continue;
+            else
+                return -1;
+        buf += done;
+        len -= done;
+    }
+    return 0;
+}
+
 #ifdef HAVE_LIBBZ2
 static int read_bz2(int in, int out, const char *path, const char *name)
 {
@@ -54,7 +71,7 @@ static int read_bz2(int in, int out, const char *path, const char *name)
     while (bzerror == BZ_OK)
     {
         nBuf = BZ2_bzRead(&bzerror, b, buf, BUFFER_SIZE);
-        if (out!=-1 && write(out, buf, nBuf)!=nBuf)
+        if (out!=-1 && rewrite(out, buf, nBuf))
         {
             BZ2_bzReadClose(&bzerror, b);
             return 1;
@@ -116,7 +133,7 @@ static int read_gz(int in, int out, const char *path, const char *name)
     }
     while ((nBuf=gzread(g, buf, BUFFER_SIZE))>0)
     {
-        if (out!=-1 && write(out, buf, nBuf)!=nBuf)
+        if (out!=-1 && rewrite(out, buf, nBuf))
         {
             gzclose(g);
             return 1;
@@ -172,7 +189,7 @@ static int read_xz(int in, int out, const char *path, const char *name)
         if (lzma_code(&xz, LZMA_RUN) != LZMA_OK)
             goto xz_read_lzma_end;
 
-        if (out!=-1 && write(out, outbuf, xz.next_out - outbuf) != xz.next_out - outbuf)
+        if (out!=-1 && rewrite(out, outbuf, xz.next_out - outbuf))
             goto xz_read_lzma_end;
     }
 
@@ -183,7 +200,7 @@ static int read_xz(int in, int out, const char *path, const char *name)
         xz.avail_out = sizeof(outbuf);
         ret = lzma_code(&xz, LZMA_FINISH);
 
-        if (out!=-1 && write(out, outbuf, xz.next_out - outbuf) != xz.next_out - outbuf)
+        if (out!=-1 && rewrite(out, outbuf, xz.next_out - outbuf))
             goto xz_read_lzma_end;
     }
     while (ret == LZMA_OK);
@@ -214,7 +231,7 @@ static int write_xz(int in, int out, const char *path, const char *name)
         if (lzma_code(&xz, LZMA_RUN) != LZMA_OK)
             goto xz_write_lzma_end;
 
-        if (write(out, outbuf, xz.next_out - outbuf) != xz.next_out - outbuf)
+        if (rewrite(out, outbuf, xz.next_out - outbuf))
             goto xz_write_lzma_end;
     }
 
@@ -225,7 +242,7 @@ static int write_xz(int in, int out, const char *path, const char *name)
         xz.avail_out = sizeof(outbuf);
         ret = lzma_code(&xz, LZMA_FINISH);
 
-        if (write(out, outbuf, xz.next_out - outbuf) != xz.next_out - outbuf)
+        if (rewrite(out, outbuf, xz.next_out - outbuf))
             goto xz_write_lzma_end;
     }
     while (ret == LZMA_OK);
@@ -272,7 +289,7 @@ static int read_zstd(int in, int out, const char *path, const char *name)
             zout.pos = 0;
             if (ZSTD_isError(r = ZSTD_decompressStream(stream, &zout, &zin)))
                 ERRzstd(zstd_r_error);
-            if (out!=-1 && write(out, zout.dst, zout.pos) != (ssize_t)zout.pos)
+            if (out!=-1 && rewrite(out, zout.dst, zout.pos))
                 ERRlibc(zstd_r_error);
         }
     }
@@ -317,7 +334,7 @@ static int write_zstd(int in, int out, const char *path, const char *name)
             zout.pos = 0;
             if (ZSTD_isError(r = ZSTD_compressStream(stream, &zout, &zin)))
                 ERRzstd(zstd_w_error);
-            if (write(out, zout.dst, zout.pos) != (ssize_t)zout.pos)
+            if (rewrite(out, zout.dst, zout.pos))
                 ERRlibc(zstd_w_error);
         }
     }
@@ -325,7 +342,7 @@ static int write_zstd(int in, int out, const char *path, const char *name)
     zout.pos = 0;
     if (ZSTD_isError(r = ZSTD_endStream(stream, &zout)))
         ERRzstd(zstd_w_error);
-    if (write(out, zout.dst, zout.pos) < r)
+    if (rewrite(out, zout.dst, zout.pos))
         ERRlibc(zstd_w_error);
 
     err = 0;
