@@ -319,34 +319,34 @@ static int read_zstd(int in, int out, const char *path, const char *name)
     zout.dst = malloc(zout.size);
 
     if (!zin.src || !zout.dst)
-        ERRoom(zstd_r_no_stream);
+        ERRoom(end);
 
     ZSTD_DStream* const stream = ZSTD_createDStream();
     if (!stream)
-        ERRoom(zstd_r_no_stream);
+        ERRoom(end);
     if (ZSTD_isError(r = ZSTD_initDStream(stream)))
-        ERRzstd(zstd_r_error);
+        ERRzstd(fail);
 
     while ((r = read(in, (void*)zin.src, inbufsz)))
     {
         if (r == -1)
-            ERRlibc(zstd_r_error);
+            ERRlibc(fail);
         zin.size = r;
         zin.pos = 0;
         while (zin.pos < zin.size)
         {
             zout.pos = 0;
             if (ZSTD_isError(r = ZSTD_decompressStream(stream, &zout, &zin)))
-                ERRzstd(zstd_r_error);
+                ERRzstd(fail);
             if (out!=-1 && rewrite(out, zout.dst, zout.pos))
-                ERRlibc(zstd_r_error);
+                ERRlibc(fail);
         }
     }
 
     err = 0;
-zstd_r_error:
+fail:
     ZSTD_freeDStream(stream);
-zstd_r_no_stream:
+end:
     free((void*)zin.src);
     free(zout.dst);
     return err;
@@ -364,43 +364,43 @@ static int write_zstd(int in, int out, const char *path, const char *name)
     zout.dst = malloc(zout.size);
 
     if (!zin.src || !zout.dst)
-        ERRoom(zstd_w_no_stream);
+        ERRoom(end);
 
     ZSTD_CStream* const stream = ZSTD_createCStream();
     if (!stream)
-        ERRoom(zstd_w_no_stream);
+        ERRoom(end);
     // unlike all other compressors, zstd levels go 1..19 (..22 as "extreme")
     level = (level - 1) * 18 / 8 + 1;
     assert(level <= 19);
     if (ZSTD_isError(r = ZSTD_initCStream(stream, level?:3)))
-        ERRzstd(zstd_w_error);
+        ERRzstd(fail);
 
     while ((r = read(in, (void*)zin.src, inbufsz)))
     {
         if (r == -1)
-            ERRlibc(zstd_w_error);
+            ERRlibc(fail);
         zin.size = r;
         zin.pos = 0;
         while (zin.pos < zin.size)
         {
             zout.pos = 0;
             if (ZSTD_isError(r = ZSTD_compressStream(stream, &zout, &zin)))
-                ERRzstd(zstd_w_error);
+                ERRzstd(fail);
             if (rewrite(out, zout.dst, zout.pos))
-                ERRlibc(zstd_w_error);
+                ERRlibc(fail);
         }
     }
 
     zout.pos = 0;
     if (ZSTD_isError(r = ZSTD_endStream(stream, &zout)))
-        ERRzstd(zstd_w_error);
+        ERRzstd(fail);
     if (rewrite(out, zout.dst, zout.pos))
-        ERRlibc(zstd_w_error);
+        ERRlibc(fail);
 
     err = 0;
-zstd_w_error:
+fail:
     ZSTD_freeCStream(stream);
-zstd_w_no_stream:
+end:
     free((void*)zin.src);
     free(zout.dst);
     return err;
