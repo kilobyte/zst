@@ -122,50 +122,79 @@ static int write_bz2(int in, int out, const char *path, const char *name)
 static int read_gz(int in, int out, const char *path, const char *name)
 {
     gzFile  g;
-    int     nBuf;
+    int     r;
     char    buf[BUFFER_SIZE];
 
-    g=gzdopen(dupa(in), "rb");
-    if (!g)
+    if ((in = dupa(in)) == -1)
+        ERRlibc(end);
+    if (!(g = gzdopen(in, "rb")))
+        ERRoom(end);
+    while ((r = gzread(g, buf, BUFFER_SIZE)) > 0)
     {
-        ERRORMSG(_("Invalid/corrupt .gz file.\n"));
+        if (out!=-1 && rewrite(out, buf, r))
+            ERRlibc(fail);
+    }
+    if (r)
+    {
+        fprintf(stderr, "%s: %s%s: %s\n", exe, path, name, gzerror(g, 0));
+        goto fail;
+    }
+
+    if ((r = gzclose(g)))
+    {
+        // other errors shouldn't happen here
+        if (r == Z_BUF_ERROR)
+            fprintf(stderr, "%s: %s%s: unexpected end of file\n", exe, path, name);
+        else
+            fprintf(stderr, "%s: %s%s: gzclose returned %d\n", exe, path, name, r);
         return 1;
     }
-    while ((nBuf=gzread(g, buf, BUFFER_SIZE))>0)
-    {
-        if (out!=-1 && rewrite(out, buf, nBuf))
-        {
-            gzclose(g);
-            return 1;
-        }
-    }
-    if (nBuf)
-    {
-        ERRORMSG("\033[0m");
-        ERRORMSG(_("gzip: Error during decompression.\n"));
-    }
+    return 0;
+
+fail:
     gzclose(g);
-    return !!nBuf;
+end:
+    return 1;
 }
 
 static int write_gz(int in, int out, const char *path, const char *name)
 {
     gzFile  g;
-    int     nBuf;
+    int     r;
     char    buf[BUFFER_SIZE];
 
-    g=gzdopen(dupa(out), "wb9");
+    if ((out = dupa(out)) == -1)
+        ERRlibc(end);
+    g = gzdopen(out, "wb9");
     if (!g)
-        return 1;
-    while ((nBuf=read(in, buf, BUFFER_SIZE))>0)
+        ERRlibc(end);
+    while ((r = read(in, buf, BUFFER_SIZE)) > 0)
     {
-        if (gzwrite(g, buf, nBuf)!=nBuf)
+        if (gzwrite(g, buf, r) != r)
         {
-            gzclose(g);
-            return 1;
+            int err = 0;
+            const char *msg = gzerror(g, &err);
+            if (err == -1)
+                ERRlibc(fail);
+            fprintf(stderr, "%s: %s%s: %s\n", exe, path, name, msg);
+            goto fail;
         }
     }
-    return !!gzclose(g);
+    if (r)
+        ERRlibc(fail);
+    if ((r = gzclose(g)))
+    {
+        if (r == -1)
+            ERRlibc(end);
+        fprintf(stderr, "%s: %s%s: gzclose returned %d\n", exe, path, name, r);
+        return 1;
+    }
+    return 0;
+
+fail:
+    gzclose(g);
+end:
+    return 1;
 }
 #endif
 
