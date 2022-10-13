@@ -22,9 +22,6 @@
 #include "prefix.h"
 #include "zst.h"
 
-#define ERRORMSG(x) fprintf(stderr, (x))
-#define _(x) (x)
-
 #define BUFFER_SIZE 32768
 
 #define ERRoom(l) do {fprintf(stderr, "%s: %s%s: Out of memory.\n", exe, path, name);goto l;} while (0)
@@ -52,6 +49,27 @@ static int rewrite(int fd, const void *buf, size_t len)
 }
 
 #ifdef HAVE_LIBBZ2
+static const char *bzerr(int e)
+{
+    switch (e)
+    {
+    case BZ_MEM_ERROR:
+        return "out of memory";
+    case BZ_DATA_ERROR:
+        return "compressed data corrupted";
+    case BZ_DATA_ERROR_MAGIC:
+        return "not a bzip2 file";
+    case BZ_IO_ERROR:
+        return strerror(errno);
+    case BZ_UNEXPECTED_EOF:
+        return "unexpected end of file";
+    default:
+        return "invalid error?!?";
+    }
+}
+
+#define ERRbz2(l) do {fprintf(stderr, "%s: %s%s: %s\n", exe, path, name, bzerr(bzerror));goto l;} while (0)
+
 static int read_bz2(int in, int out, const char *path, const char *name)
 {
     BZFILE* b;
@@ -59,35 +77,28 @@ static int read_bz2(int in, int out, const char *path, const char *name)
     char    buf[BUFFER_SIZE];
     int     bzerror;
 
-    b = BZ2_bzReadOpen(&bzerror, fdopen(dupa(in),"rb"), 0, 0, NULL, 0);
-    if (bzerror != BZ_OK)
-    {
-        BZ2_bzReadClose(&bzerror, b);
-        // error
-        ERRORMSG(_("Invalid/corrupt .bz2 file.\n"));
-        return 1;
-    }
+    if ((in = dupa(in)) == -1)
+        ERRlibc(end);
+    b = BZ2_bzReadOpen(&bzerror, fdopen(in,"rb"), 0, 0, NULL, 0);
+    if (bzerror)
+        ERRbz2(end);
 
     bzerror = BZ_OK;
     while (bzerror == BZ_OK)
     {
         nBuf = BZ2_bzRead(&bzerror, b, buf, BUFFER_SIZE);
         if (out!=-1 && rewrite(out, buf, nBuf))
-        {
-            BZ2_bzReadClose(&bzerror, b);
-            return 1;
-        }
+            ERRlibc(fail);
     }
     if (bzerror != BZ_STREAM_END)
-    {
-        BZ2_bzReadClose(&bzerror, b);
-        // error
-        ERRORMSG("\033[0m");
-        ERRORMSG(_("bzip2: Error during decompression.\n"));
-        return 1;
-    }
+        ERRbz2(fail);
     BZ2_bzReadClose(&bzerror, b);
-    return bzerror != BZ_OK;
+    return 0;
+
+fail:
+    BZ2_bzReadClose(&bzerror, b);
+end:
+    return 1;
 }
 
 static int write_bz2(int in, int out, const char *path, const char *name)
@@ -97,25 +108,30 @@ static int write_bz2(int in, int out, const char *path, const char *name)
     char    buf[BUFFER_SIZE];
     int     bzerror;
 
-    b = BZ2_bzWriteOpen(&bzerror, fdopen(dupa(out),"wb"), level?:9, 0, 0);
-    if (bzerror != BZ_OK)
-    {
-        BZ2_bzWriteClose(&bzerror, b, 0,0,0);
-        return 1;
-    }
+    if ((out = dupa(out)) == -1)
+        ERRlibc(end);
+    b = BZ2_bzWriteOpen(&bzerror, fdopen(out,"wb"), level?:9, 0, 0);
+    if (bzerror)
+        ERRbz2(end);
 
     bzerror = BZ_OK;
-    while ((nBuf=read(in, buf, BUFFER_SIZE))>0)
+    while ((nBuf = read(in, buf, BUFFER_SIZE)) > 0)
     {
         BZ2_bzWrite(&bzerror, b, buf, nBuf);
-        if (bzerror != BZ_OK)
-        {
-            BZ2_bzWriteClose(&bzerror, b, 0,0,0);
-            return 1;
-        }
+        if (bzerror)
+            ERRbz2(fail);
     }
+    if (nBuf)
+        ERRlibc(fail);
     BZ2_bzWriteClose(&bzerror, b, 0,0,0);
-    return bzerror != BZ_OK;
+    if (bzerror)
+        ERRbz2(end);
+    return 0;
+
+fail:
+    BZ2_bzWriteClose(&bzerror, b, 0,0,0);
+end:
+    return 1;
 }
 #endif
 
