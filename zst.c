@@ -148,7 +148,7 @@ int main(int argc, char **argv)
     exe = exe? exe+1 : argv[0];
 
     int opt;
-    while ((opt = getopt(argc, argv, "cdfklnqrth123456789")) != -1)
+    while ((opt = getopt(argc, argv, "cdzfklnqrth123456789")) != -1)
         switch (opt)
         {
         case 'c':
@@ -156,6 +156,9 @@ int main(int argc, char **argv)
             break;
         case 'd':
             op = 'd';
+            break;
+        case 'z':
+            op = 0;
             break;
         case 'f':
             force = 1;
