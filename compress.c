@@ -219,14 +219,39 @@ end:
 #endif
 
 #ifdef HAVE_LIBLZMA
+static const char *xzerr(lzma_ret e)
+{
+    switch (e)
+    {
+    case LZMA_MEM_ERROR:
+        return "out of memory";
+    case LZMA_MEMLIMIT_ERROR:
+        return "memory usage limit was reached";
+    case LZMA_FORMAT_ERROR:
+        return "file format not recognized";
+    case LZMA_OPTIONS_ERROR:
+        return "invalid or unsupported options";
+    case LZMA_DATA_ERROR:
+        return "file is corrupted";
+    case LZMA_BUF_ERROR:
+        return "unexpected end of file";
+    case LZMA_PROG_ERROR:
+        return "internal error";
+    default:
+        return "invalid error?!?";
+    }
+}
+
+#define ERRxz(l) do {fprintf(stderr, "%s: %s%s: %s\n", exe, path, name, xzerr(ret));goto l;} while (0)
+
 static int read_xz(int in, int out, const char *path, const char *name)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
     lzma_stream xz = LZMA_STREAM_INIT;
     lzma_ret ret = 0;
 
-    if (lzma_stream_decoder(&xz, UINT64_MAX, LZMA_CONCATENATED) != LZMA_OK)
-        goto xz_read_end;
+    if (lzma_stream_decoder(&xz, UINT64_MAX, LZMA_CONCATENATED))
+        ERRoom(end);
 
     xz.avail_in  = 0;
 
@@ -235,12 +260,14 @@ static int read_xz(int in, int out, const char *path, const char *name)
     {
         xz.next_out  = outbuf;
         xz.avail_out = sizeof(outbuf);
-        if (lzma_code(&xz, LZMA_RUN) != LZMA_OK)
-            goto xz_read_lzma_end;
+        if ((ret = lzma_code(&xz, LZMA_RUN)))
+            ERRxz(fail);
 
         if (out!=-1 && rewrite(out, outbuf, xz.next_out - outbuf))
-            goto xz_read_lzma_end;
+            ERRlibc(fail);
     }
+    if (xz.avail_in)
+        ERRlibc(fail);
 
     // Flush the stream
     do
@@ -250,15 +277,18 @@ static int read_xz(int in, int out, const char *path, const char *name)
         ret = lzma_code(&xz, LZMA_FINISH);
 
         if (out!=-1 && rewrite(out, outbuf, xz.next_out - outbuf))
-            goto xz_read_lzma_end;
+            ERRlibc(fail);
     }
-    while (ret == LZMA_OK);
-
-xz_read_lzma_end:
+    while (!ret);
+    if (ret != LZMA_STREAM_END)
+        ERRxz(fail);
     lzma_end(&xz);
+    return 0;
 
-xz_read_end:
-    return ret != LZMA_STREAM_END;
+fail:
+    lzma_end(&xz);
+end:
+    return 1;
 }
 
 static int write_xz(int in, int out, const char *path, const char *name)
@@ -267,8 +297,8 @@ static int write_xz(int in, int out, const char *path, const char *name)
     lzma_stream xz = LZMA_STREAM_INIT;
     lzma_ret ret = 0;
 
-    if (lzma_easy_encoder(&xz, level?:6, LZMA_CHECK_CRC64) != LZMA_OK)
-        goto xz_write_end;
+    if (lzma_easy_encoder(&xz, level?:6, LZMA_CHECK_CRC64))
+        ERRoom(end);
 
     xz.avail_in  = 0;
 
@@ -277,12 +307,14 @@ static int write_xz(int in, int out, const char *path, const char *name)
     {
         xz.next_out  = outbuf;
         xz.avail_out = sizeof(outbuf);
-        if (lzma_code(&xz, LZMA_RUN) != LZMA_OK)
-            goto xz_write_lzma_end;
+        if ((ret = lzma_code(&xz, LZMA_RUN)))
+            ERRxz(fail);
 
         if (rewrite(out, outbuf, xz.next_out - outbuf))
-            goto xz_write_lzma_end;
+            ERRlibc(fail);
     }
+    if (xz.avail_in)
+        ERRlibc(fail);
 
     // Flush the stream
     do
@@ -292,15 +324,18 @@ static int write_xz(int in, int out, const char *path, const char *name)
         ret = lzma_code(&xz, LZMA_FINISH);
 
         if (rewrite(out, outbuf, xz.next_out - outbuf))
-            goto xz_write_lzma_end;
+            ERRlibc(fail);
     }
-    while (ret == LZMA_OK);
-
-xz_write_lzma_end:
+    while (!ret);
+    if (ret != LZMA_STREAM_END)
+        ERRxz(fail);
     lzma_end(&xz);
+    return 0;
 
-xz_write_end:
-    return ret == LZMA_STREAM_END;
+fail:
+    lzma_end(&xz);
+end:
+    return 1;
 }
 #endif
 
