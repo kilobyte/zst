@@ -1,4 +1,5 @@
 #include "config.h"
+#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -96,7 +97,7 @@ static int write_bz2(int in, int out, const char *path, const char *name)
     char    buf[BUFFER_SIZE];
     int     bzerror;
 
-    b = BZ2_bzWriteOpen(&bzerror, fdopen(dupa(out),"wb"), 9, 0, 0);
+    b = BZ2_bzWriteOpen(&bzerror, fdopen(dupa(out),"wb"), level?:9, 0, 0);
     if (bzerror != BZ_OK)
     {
         BZ2_bzWriteClose(&bzerror, b, 0,0,0);
@@ -165,7 +166,10 @@ static int write_gz(int in, int out, const char *path, const char *name)
 
     if ((out = dupa(out)) == -1)
         ERRlibc(end);
-    g = gzdopen(out, "wb9");
+    char mode[4] = "6wb";
+    if (level)
+        mode[0] = level + '0';
+    g = gzdopen(out, mode);
     if (!g)
         ERRlibc(end);
     while ((r = read(in, buf, BUFFER_SIZE)) > 0)
@@ -247,7 +251,7 @@ static int write_xz(int in, int out, const char *path, const char *name)
     lzma_stream xz = LZMA_STREAM_INIT;
     lzma_ret ret = 0;
 
-    if (lzma_easy_encoder(&xz, 6, LZMA_CHECK_CRC64) != LZMA_OK)
+    if (lzma_easy_encoder(&xz, level?:6, LZMA_CHECK_CRC64) != LZMA_OK)
         goto xz_write_end;
 
     xz.avail_in  = 0;
@@ -349,7 +353,10 @@ static int write_zstd(int in, int out, const char *path, const char *name)
     ZSTD_CStream* const stream = ZSTD_createCStream();
     if (!stream)
         ERRoom(zstd_w_no_stream);
-    if (ZSTD_isError(r = ZSTD_initCStream(stream, 3)))
+    // unlike all other compressors, zstd levels go 1..19 (..22 as "extreme")
+    level = (level - 1) * 18 / 8 + 1;
+    assert(level <= 19);
+    if (ZSTD_isError(r = ZSTD_initCStream(stream, level?:3)))
         ERRzstd(zstd_w_error);
 
     while ((r = read(in, (void*)zin.src, inbufsz)))

@@ -21,7 +21,7 @@ static bool force;
 static bool keep;
 static bool quiet;
 static bool recurse;
-static int level;
+int level;
 static int op;
 static int err;
 
