@@ -39,7 +39,6 @@ static int flink(int dir, int fd, const char *newname)
 
 static void do_file(int dir, const char *name, const char *path, int fd)
 {
-    fprintf(stderr, "%s｢%s｣\n", path, name);
     int out = -1;
     char *name2 = 0;
     compress_info *fcomp = comp;
