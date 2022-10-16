@@ -37,6 +37,7 @@ static int flink(int dir, int fd, const char *newname)
     return ret;
 }
 
+#define FAIL(msg, ...) do {fprintf(stderr, "%s: " msg, exe, __VA_ARGS__); err=1; goto closure;} while(0)
 static void do_file(int dir, const char *name, const char *path, int fd)
 {
     int out = -1;
@@ -69,24 +70,15 @@ static void do_file(int dir, const char *name, const char *path, int fd)
         if (!force)
         {
             if (!faccessat(dir, name2, F_OK, AT_EACCESS))
-            {
-                fprintf(stderr, "%s: %s%s already exists.\n", exe, path, name2);
-                err = 1;
-                goto closure;
-            }
+                FAIL("%s%s already exists.\n", path, name2);
             if (errno != ENOENT)
-            {
-                fprintf(stderr, "%s: %s%s: %m\n", exe, path, name2);
-                err = 1;
-                goto closure;
-            }
+                FAIL("%s%s: %m\n", path, name2);
         }
         out = openat(dir, ".", O_TMPFILE|O_WRONLY, 0666);
         if (out == -1)
         {
             // TODO: fallback
-            fprintf(stderr, "%s: open: %s: %m\n", exe, name2);
-            goto closure;
+            FAIL("open: %s%s: %m\n", path, name2);
         }
     }
 
@@ -99,27 +91,18 @@ static void do_file(int dir, const char *name, const char *path, int fd)
             if (errno==EEXIST && force)
             {
                 if (unlinkat(dir, name2, 0))
-                {
-                    fprintf(stderr, "%s: can't remove %s%s: %m\n", exe, path, name2);
-                    err = 1;
-                    goto closure;
-                }
+                    FAIL("can't remove %s%s: %m\n", path, name2);
 
                 if (!flink(dir, out, name2))
                     goto flink_ok;
             }
 
-            fprintf(stderr, "%s: can't link %s: %m\n", exe, name2);
-            err = 1;
-            goto closure;
+            FAIL("can't link %s%s: %m\n", path, name2);
         }
 
 flink_ok:
         if (!keep && unlinkat(dir, name, 0))
-        {
-            fprintf(stderr, "%s: can't remove %s: %m\n", exe, name);
-            err = 1;
-        }
+            FAIL("can't remove %s%s: %m\n", path, name);
     }
 
 closure:
