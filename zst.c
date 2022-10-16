@@ -66,6 +66,21 @@ static void do_file(int dir, const char *name, const char *path, int fd)
             name2 = strndup(name, strlen(name) - strlen(fcomp->ext));
         else
             asprintf(&name2, "%s%s", name, comp->ext);
+        if (!force)
+        {
+            if (!faccessat(dir, name2, F_OK, AT_EACCESS))
+            {
+                fprintf(stderr, "%s: %s%s already exists.\n", exe, path, name2);
+                err = 1;
+                goto closure;
+            }
+            if (errno != ENOENT)
+            {
+                fprintf(stderr, "%s: %s%s: %m\n", exe, path, name2);
+                err = 1;
+                goto closure;
+            }
+        }
         out = openat(dir, ".", O_TMPFILE|O_WRONLY, 0666);
         if (out == -1)
         {
@@ -81,10 +96,25 @@ static void do_file(int dir, const char *name, const char *path, int fd)
     {
         if (flink(dir, out, name2))
         {
+            if (errno==EEXIST && force)
+            {
+                if (unlinkat(dir, name2, 0))
+                {
+                    fprintf(stderr, "%s: can't remove %s%s: %m\n", exe, path, name2);
+                    err = 1;
+                    goto closure;
+                }
+
+                if (!flink(dir, out, name2))
+                    goto flink_ok;
+            }
+
             fprintf(stderr, "%s: can't link %s: %m\n", exe, name2);
             err = 1;
             goto closure;
         }
+
+flink_ok:
         if (!keep && unlinkat(dir, name, 0))
         {
             fprintf(stderr, "%s: can't remove %s: %m\n", exe, name);
