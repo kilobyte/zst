@@ -56,7 +56,11 @@ static void do_file(int dir, const char *name, const char *path, int fd)
     if (op == 't')
         out = -1;
     else if (fd <= 0 || cat)
+    {
         out = 1;
+        if (!op && !force & isatty(1))
+            die("%s: refusing to write compressed data to a terminal, use -f to force.\n", exe);
+    }
     else
     {
         if (op)
