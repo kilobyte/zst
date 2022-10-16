@@ -36,7 +36,6 @@ configure_file(config.h.cmake ${CMAKE_BINARY_DIR}/config.h)
 
 set(zst_sources
 	compress.c
-	prefix.c
 	zst.c
 )
 

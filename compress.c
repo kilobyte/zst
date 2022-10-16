@@ -19,7 +19,6 @@
 # include <zstd.h>
 #endif
 #include "compress.h"
-#include "prefix.h"
 #include "zst.h"
 
 #define BUFFER_SIZE 32768
@@ -473,6 +472,18 @@ compress_info decompressors[]={
 #endif
 {0, 0, 0},
 };
+
+static int match_suffix(const char *txt, const char *ext)
+{
+    int tl,el;
+
+    tl=strlen(txt);
+    el=strlen(ext);
+    if (tl<=el)
+        return 0;
+    txt+=tl-el;
+    return !strncmp(txt, ext, el);
+}
 
 compress_info *comp_from_ext(const char *name, compress_info *ci)
 {
