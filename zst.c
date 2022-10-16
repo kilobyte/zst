@@ -44,7 +44,7 @@ static void do_file(int dir, const char *name, const char *path, int fd)
     char *name2 = 0;
     compress_info *fcomp = comp;
 
-    if (op && fd>0 && !(fcomp = comp_from_ext(name, decompressors)))
+    if (op && fd>0 && !(fcomp = comp_by_ext(name, decompressors)))
     {
         fprintf(stderr, "%s: %s: unknown suffix -- ignored\n", exe, name);
         if (!err)
@@ -188,7 +188,7 @@ int main(int argc, char **argv)
             exit(1);
         }
 
-    comp = comp_from_ext("@.zst", op? decompressors : compressors);
+    comp = comp_by_ext("@.zst", op? decompressors : compressors);
     if (!comp)
         abort();
 

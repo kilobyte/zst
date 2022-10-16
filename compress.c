@@ -485,7 +485,7 @@ static int match_suffix(const char *txt, const char *ext)
     return !strncmp(txt, ext, el);
 }
 
-compress_info *comp_from_ext(const char *name, compress_info *ci)
+compress_info *comp_by_ext(const char *name, compress_info *ci)
 {
     for (;ci->name;ci++)
         if (match_suffix(name, ci->ext))
