@@ -72,13 +72,15 @@ static const char *bzerr(int e)
 static int read_bz2(int in, int out, const char *path, const char *name)
 {
     BZFILE* b;
+    FILE*   f = 0;
     int     nBuf;
     char    buf[BUFFER_SIZE];
     int     bzerror;
 
     if ((in = dupa(in)) == -1)
         ERRlibc(end);
-    b = BZ2_bzReadOpen(&bzerror, fdopen(in,"rb"), 0, 0, NULL, 0);
+    f = fdopen(in, "rb");
+    b = BZ2_bzReadOpen(&bzerror, f, 0, 0, NULL, 0);
     if (bzerror)
         ERRbz2(end);
 
@@ -92,24 +94,29 @@ static int read_bz2(int in, int out, const char *path, const char *name)
     if (bzerror != BZ_STREAM_END)
         ERRbz2(fail);
     BZ2_bzReadClose(&bzerror, b);
+    fclose(f);
     return 0;
 
 fail:
     BZ2_bzReadClose(&bzerror, b);
 end:
+    if (f)
+        fclose(f);
     return 1;
 }
 
 static int write_bz2(int in, int out, const char *path, const char *name)
 {
     BZFILE* b;
+    FILE*   f = 0;
     int     nBuf;
     char    buf[BUFFER_SIZE];
     int     bzerror;
 
     if ((out = dupa(out)) == -1)
         ERRlibc(end);
-    b = BZ2_bzWriteOpen(&bzerror, fdopen(out,"wb"), level?:9, 0, 0);
+    f = fdopen(out, "wb");
+    b = BZ2_bzWriteOpen(&bzerror, f, level?:9, 0, 0);
     if (bzerror)
         ERRbz2(end);
 
@@ -125,11 +132,18 @@ static int write_bz2(int in, int out, const char *path, const char *name)
     BZ2_bzWriteClose(&bzerror, b, 0,0,0);
     if (bzerror)
         ERRbz2(end);
+    if (fclose(f))
+    {
+        f = 0;
+        ERRlibc(end);
+    }
     return 0;
 
 fail:
     BZ2_bzWriteClose(&bzerror, b, 0,0,0);
 end:
+    if (f)
+        fclose(f);
     return 1;
 }
 #endif
