@@ -492,3 +492,11 @@ compress_info *comp_by_ext(const char *name, compress_info *ci)
             return ci;
     return 0;
 }
+
+compress_info *comp_by_name(const char *name, compress_info *ci)
+{
+    for (;ci->name;ci++)
+        if (!strcmp(name, ci->name) || !strcmp(name, ci->ext+1))
+            return ci;
+    return 0;
+}

@@ -147,8 +147,10 @@ int main(int argc, char **argv)
     exe = strrchr(argv[0], '/');
     exe = exe? exe+1 : argv[0];
 
+    const char *prog = "zstd";
+
     int opt;
-    while ((opt = getopt(argc, argv, "cdzfklnqrth123456789")) != -1)
+    while ((opt = getopt(argc, argv, "cdzfklnqrthF:123456789")) != -1)
         switch (opt)
         {
         case 'c':
@@ -180,6 +182,9 @@ int main(int argc, char **argv)
         case 't':
             op = 't';
             break;
+        case 'F':
+            prog = optarg;
+            break;
         case '1' ... '9':
             level = opt - '0';
             break;
@@ -188,9 +193,9 @@ int main(int argc, char **argv)
             exit(1);
         }
 
-    comp = comp_by_ext("@.zst", op? decompressors : compressors);
+    comp = comp_by_name(prog, op? decompressors : compressors);
     if (!comp)
-        abort();
+        die("%s: no such format known '%s'\n", exe, prog);
 
     if (optind >= argc)
         do_file(-1, "stdin", "", 0);
