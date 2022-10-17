@@ -23,9 +23,9 @@
 
 #define BUFFER_SIZE 32768
 
-#define ERRoom(l) do {fprintf(stderr, "%s: %s%s: Out of memory.\n", exe, fi->path, fi->name_in);goto l;} while (0)
-#define ERRueof(l) do {fprintf(stderr, "%s: %s%s: unexpected end of file\n", exe, fi->path, fi->name_in);goto l;} while (0)
-#define ERRlibc(l) do {fprintf(stderr, "%s: %s%s: %m\n", exe, fi->path, fi->name_in);goto l;} while (0)
+#define ERRoom(l,f) do {fprintf(stderr, "%s: %s%s: Out of memory.\n", exe, fi->path, fi->name_##f);goto l;} while (0)
+#define ERRueof(l,f) do {fprintf(stderr, "%s: %s%s: unexpected end of file\n", exe, fi->path, fi->name_##f);goto l;} while (0)
+#define ERRlibc(l,f) do {fprintf(stderr, "%s: %s%s: %m\n", exe, fi->path, fi->name_##f);goto l;} while (0)
 
 static int dupa(int fd)
 {
@@ -68,7 +68,7 @@ static const char *bzerr(int e)
     }
 }
 
-#define ERRbz2(l) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_in, bzerr(bzerror));goto l;} while (0)
+#define ERRbz2(l,f) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_##f, bzerr(bzerror));goto l;} while (0)
 
 static int read_bz2(int in, int out, file_info *fi)
 {
@@ -79,21 +79,21 @@ static int read_bz2(int in, int out, file_info *fi)
     int     bzerror;
 
     if ((in = dupa(in)) == -1)
-        ERRlibc(end);
+        ERRlibc(end, in);
     f = fdopen(in, "rb");
     b = BZ2_bzReadOpen(&bzerror, f, 0, 0, NULL, 0);
     if (bzerror)
-        ERRbz2(end);
+        ERRbz2(end, in);
 
     bzerror = BZ_OK;
     while (bzerror == BZ_OK)
     {
         nBuf = BZ2_bzRead(&bzerror, b, buf, BUFFER_SIZE);
         if (out!=-1 && rewrite(out, buf, nBuf))
-            ERRlibc(fail);
+            ERRlibc(fail, out);
     }
     if (bzerror != BZ_STREAM_END)
-        ERRbz2(fail);
+        ERRbz2(fail, in);
     BZ2_bzReadClose(&bzerror, b);
     fclose(f);
     return 0;
@@ -115,28 +115,28 @@ static int write_bz2(int in, int out, file_info *fi)
     int     bzerror;
 
     if ((out = dupa(out)) == -1)
-        ERRlibc(end);
+        ERRlibc(end, out);
     f = fdopen(out, "wb");
     b = BZ2_bzWriteOpen(&bzerror, f, level?:9, 0, 0);
     if (bzerror)
-        ERRbz2(end);
+        ERRbz2(end, out);
 
     bzerror = BZ_OK;
     while ((nBuf = read(in, buf, BUFFER_SIZE)) > 0)
     {
         BZ2_bzWrite(&bzerror, b, buf, nBuf);
         if (bzerror)
-            ERRbz2(fail);
+            ERRbz2(fail, out);
     }
     if (nBuf)
-        ERRlibc(fail);
+        ERRlibc(fail, in);
     BZ2_bzWriteClose(&bzerror, b, 0,0,0);
     if (bzerror)
-        ERRbz2(end);
+        ERRbz2(end, out);
     if (fclose(f))
     {
         f = 0;
-        ERRlibc(end);
+        ERRlibc(end, out);
     }
     return 0;
 
@@ -173,7 +173,7 @@ static const char *gzerr(int e)
     }
 }
 
-#define ERRgz(l) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_in, gzerr(ret));goto l;} while (0)
+#define ERRgz(l,f) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_##f, gzerr(ret));goto l;} while (0)
 
 static int read_gz(int in, int out, file_info *fi)
 {
@@ -183,7 +183,7 @@ static int read_gz(int in, int out, file_info *fi)
 
     bzero(&st, sizeof st);
     if (inflateInit2(&st, 32))
-        ERRoom(end);
+        ERRoom(end, in);
 
     while (st.avail_in
            || (st.avail_in = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
@@ -191,13 +191,13 @@ static int read_gz(int in, int out, file_info *fi)
         st.next_out  = outbuf;
         st.avail_out = sizeof outbuf;
         if ((ret = inflate(&st, Z_NO_FLUSH)) && ret != Z_STREAM_END)
-            ERRgz(fail);
+            ERRgz(fail, in);
 
         if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
-            ERRlibc(fail);
+            ERRlibc(fail, out);
     }
     if (st.avail_in)
-        ERRlibc(fail);
+        ERRlibc(fail, in);
 
     // Flush the stream
     do
@@ -207,10 +207,10 @@ static int read_gz(int in, int out, file_info *fi)
         ret = inflate(&st, Z_FINISH);
 
         if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
-            ERRlibc(fail);
+            ERRlibc(fail, out);
     } while (!ret);
     if (ret != Z_STREAM_END)
-        ERRgz(fail);
+        ERRgz(fail, in);
     inflateEnd(&st);
     return 0;
 
@@ -228,7 +228,7 @@ static int write_gz(int in, int out, file_info *fi)
 
     bzero(&st, sizeof st);
     if ((ret = deflateInit2(&st, level?:6, Z_DEFLATED, 31, 9, 0)))
-        ERRgz(end);
+        ERRgz(end, in);
 
     while (st.avail_in
            || (st.avail_in = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
@@ -236,13 +236,13 @@ static int write_gz(int in, int out, file_info *fi)
         st.next_out  = outbuf;
         st.avail_out = sizeof(outbuf);
         if ((ret = deflate(&st, Z_NO_FLUSH)))
-            ERRgz(fail);
+            ERRgz(fail, in);
 
         if (rewrite(out, outbuf, st.next_out - outbuf))
-            ERRlibc(fail);
+            ERRlibc(fail, out);
     }
     if (st.avail_in)
-        ERRlibc(fail);
+        ERRlibc(fail, in);
 
     // Flush the stream
     do
@@ -252,10 +252,10 @@ static int write_gz(int in, int out, file_info *fi)
         ret = deflate(&st, Z_FINISH);
 
         if (rewrite(out, outbuf, st.next_out - outbuf))
-            ERRlibc(fail);
+            ERRlibc(fail, out);
     } while (!ret);
     if (ret != Z_STREAM_END)
-        ERRgz(fail);
+        ERRgz(fail, in);
     inflateEnd(&st);
     return 0;
 
@@ -290,7 +290,7 @@ static const char *xzerr(lzma_ret e)
     }
 }
 
-#define ERRxz(l) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_in, xzerr(ret));goto l;} while (0)
+#define ERRxz(l,f) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_##f, xzerr(ret));goto l;} while (0)
 
 static int read_xz(int in, int out, file_info *fi)
 {
@@ -299,7 +299,7 @@ static int read_xz(int in, int out, file_info *fi)
     lzma_ret ret = 0;
 
     if (lzma_stream_decoder(&xz, UINT64_MAX, LZMA_CONCATENATED))
-        ERRoom(end);
+        ERRoom(end, in);
 
     xz.avail_in  = 0;
 
@@ -309,13 +309,13 @@ static int read_xz(int in, int out, file_info *fi)
         xz.next_out  = outbuf;
         xz.avail_out = sizeof(outbuf);
         if ((ret = lzma_code(&xz, LZMA_RUN)))
-            ERRxz(fail);
+            ERRxz(fail, in);
 
         if (out!=-1 && rewrite(out, outbuf, xz.next_out - outbuf))
-            ERRlibc(fail);
+            ERRlibc(fail, out);
     }
     if (xz.avail_in)
-        ERRlibc(fail);
+        ERRlibc(fail, in);
 
     // Flush the stream
     do
@@ -325,11 +325,10 @@ static int read_xz(int in, int out, file_info *fi)
         ret = lzma_code(&xz, LZMA_FINISH);
 
         if (out!=-1 && rewrite(out, outbuf, xz.next_out - outbuf))
-            ERRlibc(fail);
-    }
-    while (!ret);
+            ERRlibc(fail, out);
+    } while (!ret);
     if (ret != LZMA_STREAM_END)
-        ERRxz(fail);
+        ERRxz(fail, in);
     lzma_end(&xz);
     return 0;
 
@@ -346,7 +345,7 @@ static int write_xz(int in, int out, file_info *fi)
     lzma_ret ret = 0;
 
     if (lzma_easy_encoder(&xz, level?:6, LZMA_CHECK_CRC64))
-        ERRoom(end);
+        ERRoom(end, in);
 
     xz.avail_in  = 0;
 
@@ -356,13 +355,13 @@ static int write_xz(int in, int out, file_info *fi)
         xz.next_out  = outbuf;
         xz.avail_out = sizeof(outbuf);
         if ((ret = lzma_code(&xz, LZMA_RUN)))
-            ERRxz(fail);
+            ERRxz(fail, in);
 
         if (rewrite(out, outbuf, xz.next_out - outbuf))
-            ERRlibc(fail);
+            ERRlibc(fail, out);
     }
     if (xz.avail_in)
-        ERRlibc(fail);
+        ERRlibc(fail, in);
 
     // Flush the stream
     do
@@ -372,11 +371,10 @@ static int write_xz(int in, int out, file_info *fi)
         ret = lzma_code(&xz, LZMA_FINISH);
 
         if (rewrite(out, outbuf, xz.next_out - outbuf))
-            ERRlibc(fail);
-    }
-    while (!ret);
+            ERRlibc(fail, out);
+    } while (!ret);
     if (ret != LZMA_STREAM_END)
-        ERRxz(fail);
+        ERRxz(fail, in);
     lzma_end(&xz);
     return 0;
 
@@ -388,7 +386,7 @@ end:
 #endif
 
 #ifdef HAVE_LIBZSTD
-#define ERRzstd(l) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_in, ZSTD_getErrorName(r));goto l;} while (0)
+#define ERRzstd(l,f) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_##f, ZSTD_getErrorName(r));goto l;} while (0)
 
 static int read_zstd(int in, int out, file_info *fi)
 {
@@ -402,29 +400,29 @@ static int read_zstd(int in, int out, file_info *fi)
     zout.dst = malloc(zout.size);
 
     if (!zin.src || !zout.dst)
-        ERRoom(end);
+        ERRoom(end, in);
 
     ZSTD_DStream* const stream = ZSTD_createDStream();
     if (!stream)
-        ERRoom(end);
+        ERRoom(end, in);
     if (ZSTD_isError(r = ZSTD_initDStream(stream)))
-        ERRzstd(fail);
+        ERRzstd(fail, in);
 
     int end_of_frame = 0; // empty file is an error
     while ((r = read(in, (void*)zin.src, inbufsz)))
     {
         if (r == -1)
-            ERRlibc(fail);
+            ERRlibc(fail, in);
         zin.size = r;
         zin.pos = 0;
         while (zin.pos < zin.size)
         {
             zout.pos = 0;
             if (ZSTD_isError(r = ZSTD_decompressStream(stream, &zout, &zin)))
-                ERRzstd(fail);
+                ERRzstd(fail, in);
             end_of_frame = !r;
             if (out!=-1 && rewrite(out, zout.dst, zout.pos))
-                ERRlibc(fail);
+                ERRlibc(fail, out);
         }
     }
 
@@ -433,12 +431,12 @@ static int read_zstd(int in, int out, file_info *fi)
     {
         zout.pos = 0;
         if (ZSTD_isError(r = ZSTD_decompressStream(stream, &zout, &zin)))
-            ERRzstd(fail);
+            ERRzstd(fail, in);
         if (out!=-1 && rewrite(out, zout.dst, zout.pos))
-            ERRlibc(fail);
+            ERRlibc(fail, out);
         // write first, fail later -- hopefully salvaging some data
         if (r)
-            ERRueof(fail);
+            ERRueof(fail, in);
     }
 
     err = 0;
@@ -462,38 +460,38 @@ static int write_zstd(int in, int out, file_info *fi)
     zout.dst = malloc(zout.size);
 
     if (!zin.src || !zout.dst)
-        ERRoom(end);
+        ERRoom(end, in);
 
     ZSTD_CStream* const stream = ZSTD_createCStream();
     if (!stream)
-        ERRoom(end);
+        ERRoom(end, in);
     // unlike all other compressors, zstd levels go 1..19 (..22 as "extreme")
     level = (level - 1) * 18 / 8 + 1;
     assert(level <= 19);
     if (ZSTD_isError(r = ZSTD_initCStream(stream, level?:3)))
-        ERRzstd(fail);
+        ERRzstd(fail, in);
 
     while ((r = read(in, (void*)zin.src, inbufsz)))
     {
         if (r == -1)
-            ERRlibc(fail);
+            ERRlibc(fail, in);
         zin.size = r;
         zin.pos = 0;
         while (zin.pos < zin.size)
         {
             zout.pos = 0;
             if (ZSTD_isError(r = ZSTD_compressStream(stream, &zout, &zin)))
-                ERRzstd(fail);
+                ERRzstd(fail, in);
             if (rewrite(out, zout.dst, zout.pos))
-                ERRlibc(fail);
+                ERRlibc(fail, out);
         }
     }
 
     zout.pos = 0;
     if (ZSTD_isError(r = ZSTD_endStream(stream, &zout)))
-        ERRzstd(fail);
+        ERRzstd(fail, in);
     if (rewrite(out, zout.dst, zout.pos))
-        ERRlibc(fail);
+        ERRlibc(fail, out);
 
     err = 0;
 fail:
