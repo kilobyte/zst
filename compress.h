@@ -4,7 +4,7 @@ typedef struct
     size_t sz, sd;
 } file_info;
 
-typedef int(compress_func)(int,int,file_info*);
+typedef int(compress_func)(int,int,file_info*restrict);
 
 typedef struct
 {

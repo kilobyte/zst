@@ -70,7 +70,7 @@ static const char *bzerr(int e)
 
 #define ERRbz2(l,f) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_##f, bzerr(bzerror));goto l;} while (0)
 
-static int read_bz2(int in, int out, file_info *fi)
+static int read_bz2(int in, int out, file_info *restrict fi)
 {
     BZFILE* b;
     FILE*   f = 0;
@@ -106,7 +106,7 @@ end:
     return 1;
 }
 
-static int write_bz2(int in, int out, file_info *fi)
+static int write_bz2(int in, int out, file_info *restrict fi)
 {
     BZFILE* b;
     FILE*   f = 0;
@@ -175,7 +175,7 @@ static const char *gzerr(int e)
 
 #define ERRgz(l,f) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_##f, gzerr(ret));goto l;} while (0)
 
-static int read_gz(int in, int out, file_info *fi)
+static int read_gz(int in, int out, file_info *restrict fi)
 {
     z_stream st;
     int ret;
@@ -220,7 +220,7 @@ end:
     return 1;
 }
 
-static int write_gz(int in, int out, file_info *fi)
+static int write_gz(int in, int out, file_info *restrict fi)
 {
     z_stream st;
     int ret;
@@ -292,7 +292,7 @@ static const char *xzerr(lzma_ret e)
 
 #define ERRxz(l,f) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_##f, xzerr(ret));goto l;} while (0)
 
-static int read_xz(int in, int out, file_info *fi)
+static int read_xz(int in, int out, file_info *restrict fi)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
     lzma_stream xz = LZMA_STREAM_INIT;
@@ -338,7 +338,7 @@ end:
     return 1;
 }
 
-static int write_xz(int in, int out, file_info *fi)
+static int write_xz(int in, int out, file_info *restrict fi)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
     lzma_stream xz = LZMA_STREAM_INIT;
@@ -388,7 +388,7 @@ end:
 #ifdef HAVE_LIBZSTD
 #define ERRzstd(l,f) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_##f, ZSTD_getErrorName(r));goto l;} while (0)
 
-static int read_zstd(int in, int out, file_info *fi)
+static int read_zstd(int in, int out, file_info *restrict fi)
 {
     int err = 1;
     ZSTD_inBuffer  zin;
@@ -448,7 +448,7 @@ end:
     return err;
 }
 
-static int write_zstd(int in, int out, file_info *fi)
+static int write_zstd(int in, int out, file_info *restrict fi)
 {
     int err = 1;
     ZSTD_inBuffer  zin;
