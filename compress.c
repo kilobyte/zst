@@ -150,83 +150,117 @@ end:
 #endif
 
 #ifdef HAVE_LIBZ
+static const char *gzerr(int e)
+{
+    switch (e)
+    {
+    case Z_NEED_DICT:
+        return "file compressed with a private dictionary";
+    case Z_ERRNO:
+        return strerror(errno);
+    case Z_STREAM_ERROR:
+        return "internal error";
+    case Z_DATA_ERROR:
+        return "file is corrupted";
+    case Z_MEM_ERROR:
+        return "out of memory";
+    case Z_BUF_ERROR:
+        return "unexpected end of file";
+    case Z_VERSION_ERROR:
+        return "unsupported version of gzip";
+    default:
+        return "invalid error?!?";
+    }
+}
+
+#define ERRgz(l) do {fprintf(stderr, "%s: %s%s: %s\n", exe, path, name, gzerr(ret));goto l;} while (0)
+
 static int read_gz(int in, int out, const char *path, const char *name)
 {
-    gzFile  g;
-    int     r;
-    char    buf[BUFFER_SIZE];
+    z_stream st;
+    int ret;
+    Bytef inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
 
-    if ((in = dupa(in)) == -1)
-        ERRlibc(end);
-    if (!(g = gzdopen(in, "rb")))
+    bzero(&st, sizeof st);
+    if (inflateInit2(&st, 32))
         ERRoom(end);
-    while ((r = gzread(g, buf, BUFFER_SIZE)) > 0)
+
+    while (st.avail_in
+           || (st.avail_in = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
     {
-        if (out!=-1 && rewrite(out, buf, r))
+        st.next_out  = outbuf;
+        st.avail_out = sizeof outbuf;
+        if ((ret = inflate(&st, Z_NO_FLUSH)) && ret != Z_STREAM_END)
+            ERRgz(fail);
+
+        if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
             ERRlibc(fail);
     }
-    if (r)
-    {
-        fprintf(stderr, "%s: %s%s: %s\n", exe, path, name, gzerror(g, 0));
-        goto fail;
-    }
+    if (st.avail_in)
+        ERRlibc(fail);
 
-    if ((r = gzclose(g)))
+    // Flush the stream
+    do
     {
-        // other errors shouldn't happen here
-        if (r == Z_BUF_ERROR)
-            fprintf(stderr, "%s: %s%s: unexpected end of file\n", exe, path, name);
-        else
-            fprintf(stderr, "%s: %s%s: gzclose returned %d\n", exe, path, name, r);
-        return 1;
-    }
+        st.next_out  = outbuf;
+        st.avail_out = sizeof outbuf;
+        ret = inflate(&st, Z_FINISH);
+
+        if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
+            ERRlibc(fail);
+    } while (!ret);
+    if (ret != Z_STREAM_END)
+        ERRgz(fail);
+    inflateEnd(&st);
     return 0;
 
 fail:
-    gzclose(g);
+    inflateEnd(&st);
 end:
     return 1;
 }
 
 static int write_gz(int in, int out, const char *path, const char *name)
 {
-    gzFile  g;
-    int     r;
-    char    buf[BUFFER_SIZE];
+    z_stream st;
+    int ret;
+    Bytef inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
 
-    if ((out = dupa(out)) == -1)
-        ERRlibc(end);
-    char mode[4] = "6wb";
-    if (level)
-        mode[0] = level + '0';
-    g = gzdopen(out, mode);
-    if (!g)
-        ERRlibc(end);
-    while ((r = read(in, buf, BUFFER_SIZE)) > 0)
+    bzero(&st, sizeof st);
+    if ((ret = deflateInit2(&st, level?:6, Z_DEFLATED, 31, 9, 0)))
+        ERRgz(end);
+
+    while (st.avail_in
+           || (st.avail_in = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
     {
-        if (gzwrite(g, buf, r) != r)
-        {
-            int err = 0;
-            const char *msg = gzerror(g, &err);
-            if (err == -1)
-                ERRlibc(fail);
-            fprintf(stderr, "%s: %s%s: %s\n", exe, path, name, msg);
-            goto fail;
-        }
+        st.next_out  = outbuf;
+        st.avail_out = sizeof(outbuf);
+        if ((ret = deflate(&st, Z_NO_FLUSH)))
+            ERRgz(fail);
+
+        if (rewrite(out, outbuf, st.next_out - outbuf))
+            ERRlibc(fail);
     }
-    if (r)
+    if (st.avail_in)
         ERRlibc(fail);
-    if ((r = gzclose(g)))
+
+    // Flush the stream
+    do
     {
-        if (r == -1)
-            ERRlibc(end);
-        fprintf(stderr, "%s: %s%s: gzclose returned %d\n", exe, path, name, r);
-        return 1;
-    }
+        st.next_out  = outbuf;
+        st.avail_out = sizeof(outbuf);
+        ret = deflate(&st, Z_FINISH);
+
+        if (rewrite(out, outbuf, st.next_out - outbuf))
+            ERRlibc(fail);
+    } while (!ret);
+    if (ret != Z_STREAM_END)
+        ERRgz(fail);
+    inflateEnd(&st);
     return 0;
 
 fail:
-    gzclose(g);
+    inflateEnd(&st);
 end:
     return 1;
 }
