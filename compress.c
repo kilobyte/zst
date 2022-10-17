@@ -24,6 +24,7 @@
 #define BUFFER_SIZE 32768
 
 #define ERRoom(l) do {fprintf(stderr, "%s: %s%s: Out of memory.\n", exe, path, name);goto l;} while (0)
+#define ERRueof(l) do {fprintf(stderr, "%s: %s%s: unexpected end of file\n", exe, path, name);goto l;} while (0)
 #define ERRlibc(l) do {fprintf(stderr, "%s: %s%s: %m\n", exe, path, name);goto l;} while (0)
 
 static int dupa(int fd)
@@ -375,6 +376,7 @@ static int read_zstd(int in, int out, const char *path, const char *name)
     if (ZSTD_isError(r = ZSTD_initDStream(stream)))
         ERRzstd(fail);
 
+    int end_of_frame = 0; // empty file is an error
     while ((r = read(in, (void*)zin.src, inbufsz)))
     {
         if (r == -1)
@@ -386,9 +388,23 @@ static int read_zstd(int in, int out, const char *path, const char *name)
             zout.pos = 0;
             if (ZSTD_isError(r = ZSTD_decompressStream(stream, &zout, &zin)))
                 ERRzstd(fail);
+            end_of_frame = !r;
             if (out!=-1 && rewrite(out, zout.dst, zout.pos))
                 ERRlibc(fail);
         }
+    }
+
+    // flush
+    if (!end_of_frame)
+    {
+        zout.pos = 0;
+        if (ZSTD_isError(r = ZSTD_decompressStream(stream, &zout, &zin)))
+            ERRzstd(fail);
+        if (out!=-1 && rewrite(out, zout.dst, zout.pos))
+            ERRlibc(fail);
+        // write first, fail later -- hopefully salvaging some data
+        if (r)
+            ERRueof(fail);
     }
 
     err = 0;
