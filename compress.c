@@ -23,9 +23,9 @@
 
 #define BUFFER_SIZE 32768
 
-#define ERRoom(l) do {fprintf(stderr, "%s: %s%s: Out of memory.\n", exe, path, name);goto l;} while (0)
-#define ERRueof(l) do {fprintf(stderr, "%s: %s%s: unexpected end of file\n", exe, path, name);goto l;} while (0)
-#define ERRlibc(l) do {fprintf(stderr, "%s: %s%s: %m\n", exe, path, name);goto l;} while (0)
+#define ERRoom(l) do {fprintf(stderr, "%s: %s%s: Out of memory.\n", exe, fi->path, fi->name_in);goto l;} while (0)
+#define ERRueof(l) do {fprintf(stderr, "%s: %s%s: unexpected end of file\n", exe, fi->path, fi->name_in);goto l;} while (0)
+#define ERRlibc(l) do {fprintf(stderr, "%s: %s%s: %m\n", exe, fi->path, fi->name_in);goto l;} while (0)
 
 static int dupa(int fd)
 {
@@ -68,9 +68,9 @@ static const char *bzerr(int e)
     }
 }
 
-#define ERRbz2(l) do {fprintf(stderr, "%s: %s%s: %s\n", exe, path, name, bzerr(bzerror));goto l;} while (0)
+#define ERRbz2(l) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_in, bzerr(bzerror));goto l;} while (0)
 
-static int read_bz2(int in, int out, const char *path, const char *name)
+static int read_bz2(int in, int out, file_info *fi)
 {
     BZFILE* b;
     FILE*   f = 0;
@@ -106,7 +106,7 @@ end:
     return 1;
 }
 
-static int write_bz2(int in, int out, const char *path, const char *name)
+static int write_bz2(int in, int out, file_info *fi)
 {
     BZFILE* b;
     FILE*   f = 0;
@@ -173,9 +173,9 @@ static const char *gzerr(int e)
     }
 }
 
-#define ERRgz(l) do {fprintf(stderr, "%s: %s%s: %s\n", exe, path, name, gzerr(ret));goto l;} while (0)
+#define ERRgz(l) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_in, gzerr(ret));goto l;} while (0)
 
-static int read_gz(int in, int out, const char *path, const char *name)
+static int read_gz(int in, int out, file_info *fi)
 {
     z_stream st;
     int ret;
@@ -220,7 +220,7 @@ end:
     return 1;
 }
 
-static int write_gz(int in, int out, const char *path, const char *name)
+static int write_gz(int in, int out, file_info *fi)
 {
     z_stream st;
     int ret;
@@ -290,9 +290,9 @@ static const char *xzerr(lzma_ret e)
     }
 }
 
-#define ERRxz(l) do {fprintf(stderr, "%s: %s%s: %s\n", exe, path, name, xzerr(ret));goto l;} while (0)
+#define ERRxz(l) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_in, xzerr(ret));goto l;} while (0)
 
-static int read_xz(int in, int out, const char *path, const char *name)
+static int read_xz(int in, int out, file_info *fi)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
     lzma_stream xz = LZMA_STREAM_INIT;
@@ -339,7 +339,7 @@ end:
     return 1;
 }
 
-static int write_xz(int in, int out, const char *path, const char *name)
+static int write_xz(int in, int out, file_info *fi)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
     lzma_stream xz = LZMA_STREAM_INIT;
@@ -388,9 +388,9 @@ end:
 #endif
 
 #ifdef HAVE_LIBZSTD
-#define ERRzstd(l) do {fprintf(stderr, "%s: %s%s: %s\n", exe, path, name, ZSTD_getErrorName(r));goto l;} while (0)
+#define ERRzstd(l) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_in, ZSTD_getErrorName(r));goto l;} while (0)
 
-static int read_zstd(int in, int out, const char *path, const char *name)
+static int read_zstd(int in, int out, file_info *fi)
 {
     int err = 1;
     ZSTD_inBuffer  zin;
@@ -450,7 +450,7 @@ end:
     return err;
 }
 
-static int write_zstd(int in, int out, const char *path, const char *name)
+static int write_zstd(int in, int out, file_info *fi)
 {
     int err = 1;
     ZSTD_inBuffer  zin;

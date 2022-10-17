@@ -1,4 +1,10 @@
-typedef int(compress_func)(int,int,const char*,const char*);
+typedef struct
+{
+    const char *path, *name_in, *name_out;
+    size_t sz, sd;
+} file_info;
+
+typedef int(compress_func)(int,int,file_info*);
 
 typedef struct
 {

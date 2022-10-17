@@ -82,7 +82,12 @@ static void do_file(int dir, const char *name, const char *path, int fd)
         }
     }
 
-    if (fcomp->comp(fd, out, path, name))
+    file_info fi;
+    fi.path = path;
+    fi.name_in = name;
+    fi.name_out = name2;
+
+    if (fcomp->comp(fd, out, &fi))
         err = 1;
     else if (out > 2)
     {
