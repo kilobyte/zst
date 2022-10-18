@@ -79,7 +79,7 @@ static void do_file(int dir, const char *name, const char *path, int fd)
         if (out == -1)
         {
             // TODO: fallback
-            FAIL("open: %s%s: %m\n", path, name2);
+            FAIL("can't create tmpfile for %s%s: %m\n", path, name2);
         }
     }
 
@@ -141,11 +141,11 @@ static void do_dir(int dir, const char *name, const char *path)
 {
     int dirfd = openat(dir, name, O_RDONLY|O_NONBLOCK|O_CLOEXEC);
     if (dirfd == -1)
-        return fail("open(%s%s): %m\n", path, name);
+        return fail("can't read %s%s: %m\n", path, name);
 
     struct stat sb;
     if (fstat(dirfd, &sb))
-        return fail("stat(%s%s): %m\n", path, name);
+        return fail("can't stat %s%s: %m\n", path, name);
 
     if (S_ISREG(sb.st_mode))
         return do_file(dir, name, path, dirfd);
@@ -161,7 +161,7 @@ static void do_dir(int dir, const char *name, const char *path)
 
     DIR *d = fdopendir(dirfd);
     if (!d)
-        return fail("fdopendir(%s%s): %m\n", path, name);
+        return fail("can't list %s%s: %m\n", path, name);
 
     struct dirent *de;
     while ((de = readdir(d)))
