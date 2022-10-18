@@ -20,6 +20,7 @@ static bool cat;
 static bool force;
 static bool keep;
 static bool quiet;
+static bool verbose;
 static bool recurse;
 int level;
 static int op;
@@ -88,7 +89,10 @@ static void do_file(int dir, const char *name, const char *path, int fd)
     fi.name_out = name2;
 
     if (fcomp->comp(fd, out, &fi))
+    {
         err = 1;
+        goto closure;
+    }
     else if (out > 2)
     {
         if (flink(dir, out, name2))
@@ -108,6 +112,17 @@ static void do_file(int dir, const char *name, const char *path, int fd)
 flink_ok:
         if (!keep && unlinkat(dir, name, 0))
             FAIL("can't remove %s%s: %m\n", path, name);
+    }
+
+    if (verbose)
+    {
+        if (op)
+            fprintf(stderr, "%s%s\n", path, name2 ?: name);
+        else if (fi.sd)
+            fprintf(stderr, "%s%s: %llu → %llu (%llu%%)\n", path, name, fi.sd, fi.sz,
+                (2*fi.sz + fi.sd) * 50 / fi.sd); // round to closest percent
+        else
+            fprintf(stderr, "%s%s: 0 → %llu (header)\n", path, name, fi.sz);
     }
 
 closure:
@@ -171,7 +186,7 @@ int main(int argc, char **argv)
     const char *prog = "zstd";
 
     int opt;
-    while ((opt = getopt(argc, argv, "cdzfklnqrthF:123456789")) != -1)
+    while ((opt = getopt(argc, argv, "cdzfklnqvrthF:123456789")) != -1)
         switch (opt)
         {
         case 'c':
@@ -196,6 +211,9 @@ int main(int argc, char **argv)
             break;
         case 'q':
             quiet = 1;
+            break;
+        case 'v':
+            verbose = 1;
             break;
         case 'r':
             recurse = 1;
