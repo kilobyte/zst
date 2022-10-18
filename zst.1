@@ -1,0 +1,119 @@
+.TH zst 1 2022-10-18
+.SH NAME
+zst \- compress or decompress .zst/.bz2/.gz/.xz files
+.SH SYNOPSIS
+.B zst
+.RI [ options ] " files" ...
+.SH DESCRIPTION
+The
+.B zst
+command can reduce the size of files by using a number of popular
+compression algorithms; in this version these are
+.IR zstd ", " bzip2 ", " xz ", " gzip
+-- and decompress them back.
+.P
+While these compressors' native tools may expose more options specific to
+the algorithm in question,
+.B zst
+unifies them with common functionality.  Eg, only
+.B gzip
+and
+.B zstd
+can recurse with
+.BR -r ,
+.B zstd
+defaults to
+.I -k
+and its levels go up to 19 rather than 9, etc.
+.P
+The default compressor is
+.I zstd
+as it's fastest while also compressing well; you may want to use
+.I xz
+instead when disk space / network bandwidth is at premium.  On the other
+hand, neither
+.I gzip
+nor
+.I bzip2
+are a superior choice in any case but especially
+.I gzip
+is entrenched for historical reasons.
+.SH OPTIONS
+.B Operation mode
+.TP
+.B -z
+Compress (default).  The file will be replaced by a compressed copy with
+an appropriate suffix added:
+.IR .zst / .bz2 / .xz / .gz
+according to the algorithm used.
+.TP
+.B -d
+Decompress.  Files without a known suffix will be left untouched.
+.TP
+.B -t
+Test the integrity of compressed files; this is functionally same as
+decompression redirected to
+.IR /dev/null .
+.PP
+.B Modifiers
+.TP
+.B -c
+Write compressed or decompressed data to standard output.  This implies
+.BR -k .
+For compression, if the stdout is a terminal,
+.B -f
+must be also specified.
+.TP
+.B -k
+The source file won't be removed after [de]compression.
+.TP
+.B -f
+Will overwrite existing files.  Allows writing compressed data to a
+terminal.
+.B [FIXME]
+.I Does not pass through uncompressed data yet.
+.TP
+.B -r
+If a directory is among file names specified on the command line, all files
+inside will be processed, possibly recursing into directories deeper in.
+.TP
+.BR -1 .. -9
+Compression level:
+.B -1
+is the weakest but fastest level the algorithm knows,
+.B -9
+is strongest and slowest.  Note that unlike the
+.B zstd
+tool, the scale is 1..9 for all algorithms -- level 9 corresponds to what
+.B zstd
+knows as 19.
+.TP
+.B -v
+List all processed files.  When compressing, the old, new, and percentage
+of required size is given.
+.TP
+.B -q
+Suppress all warnings.  Unrelated to
+.BR -v .
+.TP
+.B -n
+Ignored; for compat with
+.BR gzip .
+.TP
+.B -F
+Specify compression algorithm to use, among those known.  This has an effect
+only in the
+.B -z
+mode or when the algorithm can't be determined from a suffix.
+.SH RETURN VALUE
+.B 1
+if any errors happened,
+.B 2
+if there's a warning but no errors,
+.B 0
+if all went ok.
+.SH SEE ALSO
+.BR zstd (1),
+.BR bzip2 (1),
+.BR gzip (1),
+.BR xz (1).

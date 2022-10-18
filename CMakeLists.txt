@@ -43,8 +43,8 @@ add_executable(zst ${zst_sources})
 target_link_libraries(zst ${libs})
 
 install(TARGETS zst DESTINATION bin)
-#install(FILES zst.1 zst.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
-#install(FILES ${CMAKE_BINARY_DIR}/zst DESTINATION bin)
+install(FILES zst.1 zst.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
+install(FILES ${CMAKE_BINARY_DIR}/zst DESTINATION bin)
 
 enable_testing()
 add_subdirectory(tests)
