@@ -33,6 +33,7 @@ add_flag(-Wredundant-decls)
 add_flag(-Wno-parentheses)
 
 configure_file(config.h.cmake ${CMAKE_BINARY_DIR}/config.h)
+include_directories(${CMAKE_BINARY_DIR})
 
 set(zst_sources
 	compress.c
