@@ -39,7 +39,7 @@ static int flink(int dir, int fd, const char *newname)
 }
 
 #define FAIL(msg, ...) do {fprintf(stderr, "%s: " msg, exe, __VA_ARGS__); err=1; goto closure;} while(0)
-static void do_file(int dir, const char *name, const char *path, int fd)
+static void do_file(int dir, const char *name, const char *path, int fd, struct timespec *ts)
 {
     int out = -1;
     char *name2 = 0;
@@ -95,6 +95,9 @@ static void do_file(int dir, const char *name, const char *path, int fd)
     }
     else if (out > 2)
     {
+        futimens(out, ts);
+        // ignore errors
+
         if (flink(dir, out, name2))
         {
             if (errno==EEXIST && force)
@@ -148,7 +151,12 @@ static void do_dir(int dir, const char *name, const char *path)
         return fail("can't stat %s%s: %m\n", path, name);
 
     if (S_ISREG(sb.st_mode))
-        return do_file(dir, name, path, dirfd);
+    {
+        struct timespec ts[2];
+        ts[0] = sb.st_atim;
+        ts[1] = sb.st_mtim;
+        return do_file(dir, name, path, dirfd, ts);
+    }
     if (!recurse)
         return fail("%s%s is not a regular file - ignored\n", path, name);
     if (!S_ISDIR(sb.st_mode))
@@ -237,7 +245,7 @@ int main(int argc, char **argv)
         die("%s: no such format known '%s'\n", exe, prog);
 
     if (optind >= argc)
-        do_file(-1, "stdin", "", 0);
+        do_file(-1, "stdin", "", 0, 0);
     else
         for (; optind < argc; optind++)
             do_dir(AT_FDCWD, argv[optind], "");
