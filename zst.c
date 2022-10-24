@@ -87,6 +87,7 @@ static void do_file(int dir, const char *name, const char *path, int fd, struct 
     fi.path = path;
     fi.name_in = name;
     fi.name_out = name2;
+    fi.sz = fi.sd = 0;
 
     if (fcomp->comp(fd, out, &fi))
     {
@@ -123,7 +124,7 @@ flink_ok:
             fprintf(stderr, "%s%s\n", path, name2 ?: name);
         else if (fi.sd)
             fprintf(stderr, "%s%s: %llu → %llu (%llu%%)\n", path, name, fi.sd, fi.sz,
-                (2*fi.sz + fi.sd) * 50 / fi.sd); // round to closest percent
+                (200 * fi.sz / fi.sd + 1) / 2); // round to closest percent
         else
             fprintf(stderr, "%s%s: 0 → %llu (header)\n", path, name, fi.sz);
     }
