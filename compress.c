@@ -342,45 +342,45 @@ static const char *xzerr(lzma_ret e)
 static int read_xz(int in, int out, file_info *restrict fi)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
-    lzma_stream xz = LZMA_STREAM_INIT;
+    lzma_stream st = LZMA_STREAM_INIT;
     lzma_ret ret = 0;
 
-    if (lzma_stream_decoder(&xz, UINT64_MAX, LZMA_CONCATENATED))
+    if (lzma_stream_decoder(&st, UINT64_MAX, LZMA_CONCATENATED))
         ERRoom(end, in);
 
-    xz.avail_in  = 0;
+    st.avail_in  = 0;
 
-    while (xz.avail_in
-           || (xz.avail_in = read(in, (uint8_t*)(xz.next_in = inbuf), BUFFER_SIZE)) > 0)
+    while (st.avail_in
+           || (st.avail_in = read(in, (uint8_t*)(st.next_in = inbuf), BUFFER_SIZE)) > 0)
     {
-        xz.next_out  = outbuf;
-        xz.avail_out = sizeof(outbuf);
-        if ((ret = lzma_code(&xz, LZMA_RUN)))
+        st.next_out  = outbuf;
+        st.avail_out = sizeof(outbuf);
+        if ((ret = lzma_code(&st, LZMA_RUN)))
             ERRxz(fail, in);
 
-        if (out!=-1 && rewrite(out, outbuf, xz.next_out - outbuf))
+        if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
             ERRlibc(fail, out);
     }
-    if (xz.avail_in)
+    if (st.avail_in)
         ERRlibc(fail, in);
 
     // Flush the stream
     do
     {
-        xz.next_out  = outbuf;
-        xz.avail_out = sizeof(outbuf);
-        ret = lzma_code(&xz, LZMA_FINISH);
+        st.next_out  = outbuf;
+        st.avail_out = sizeof(outbuf);
+        ret = lzma_code(&st, LZMA_FINISH);
 
-        if (out!=-1 && rewrite(out, outbuf, xz.next_out - outbuf))
+        if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
             ERRlibc(fail, out);
     } while (!ret);
     if (ret != LZMA_STREAM_END)
         ERRxz(fail, in);
-    lzma_end(&xz);
+    lzma_end(&st);
     return 0;
 
 fail:
-    lzma_end(&xz);
+    lzma_end(&st);
 end:
     return 1;
 }
@@ -388,48 +388,48 @@ end:
 static int write_xz(int in, int out, file_info *restrict fi)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
-    lzma_stream xz = LZMA_STREAM_INIT;
+    lzma_stream st = LZMA_STREAM_INIT;
     lzma_ret ret = 0;
 
-    if (lzma_easy_encoder(&xz, level?:6, LZMA_CHECK_CRC64))
+    if (lzma_easy_encoder(&st, level?:6, LZMA_CHECK_CRC64))
         ERRoom(end, in);
 
-    while ((xz.avail_in = read(in, (uint8_t*)(xz.next_in = inbuf), BUFFER_SIZE)) > 0)
+    while ((st.avail_in = read(in, (uint8_t*)(st.next_in = inbuf), BUFFER_SIZE)) > 0)
     {
-        fi->sd += xz.avail_in;
+        fi->sd += st.avail_in;
         do
         {
-            xz.next_out  = outbuf;
-            xz.avail_out = sizeof(outbuf);
-            if ((ret = lzma_code(&xz, LZMA_RUN)))
+            st.next_out  = outbuf;
+            st.avail_out = sizeof(outbuf);
+            if ((ret = lzma_code(&st, LZMA_RUN)))
                 ERRxz(fail, in);
 
-            if (rewrite(out, outbuf, xz.next_out - outbuf))
+            if (rewrite(out, outbuf, st.next_out - outbuf))
                 ERRlibc(fail, out);
-            fi->sz += xz.next_out - outbuf;
-        } while (xz.avail_in);
+            fi->sz += st.next_out - outbuf;
+        } while (st.avail_in);
     }
-    if (xz.avail_in)
+    if (st.avail_in)
         ERRlibc(fail, in);
 
     // Flush the stream
     do
     {
-        xz.next_out  = outbuf;
-        xz.avail_out = sizeof(outbuf);
-        ret = lzma_code(&xz, LZMA_FINISH);
+        st.next_out  = outbuf;
+        st.avail_out = sizeof(outbuf);
+        ret = lzma_code(&st, LZMA_FINISH);
 
-        if (rewrite(out, outbuf, xz.next_out - outbuf))
+        if (rewrite(out, outbuf, st.next_out - outbuf))
             ERRlibc(fail, out);
-        fi->sz += xz.next_out - outbuf;
+        fi->sz += st.next_out - outbuf;
     } while (!ret);
     if (ret != LZMA_STREAM_END)
         ERRxz(fail, in);
-    lzma_end(&xz);
+    lzma_end(&st);
     return 0;
 
 fail:
-    lzma_end(&xz);
+    lzma_end(&st);
 end:
     return 1;
 }
