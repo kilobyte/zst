@@ -2,7 +2,6 @@
 #include "config.h"
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -27,11 +26,6 @@
 #define ERRoom(l,f) do {fprintf(stderr, "%s: %s%s: Out of memory.\n", exe, fi->path, fi->name_##f);goto l;} while (0)
 #define ERRueof(l,f) do {fprintf(stderr, "%s: %s%s: unexpected end of file\n", exe, fi->path, fi->name_##f);goto l;} while (0)
 #define ERRlibc(l,f) do {fprintf(stderr, "%s: %s%s: %m\n", exe, fi->path, fi->name_##f);goto l;} while (0)
-
-static int dupa(int fd)
-{
-    return fcntl(fd, F_DUPFD_CLOEXEC, 0);
-}
 
 static int rewrite(int fd, const void *buf, size_t len)
 {
