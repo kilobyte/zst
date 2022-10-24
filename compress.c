@@ -64,6 +64,17 @@ static const char *bzerr(int e)
         return strerror(errno);
     case BZ_UNEXPECTED_EOF:
         return "unexpected end of file";
+# ifndef NDEBUG
+    // these can happen only if our code is bogus
+    case BZ_SEQUENCE_ERROR:
+        return "internal error: bad call sequence";
+    case BZ_PARAM_ERROR:
+        return "internal error: param error";
+    case BZ_OUTBUFF_FULL:
+        return "internal error: buffer full";
+    case BZ_CONFIG_ERROR:
+        return "internal error: bad config";
+# endif
     default:
         return "invalid error?!?";
     }
