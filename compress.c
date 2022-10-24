@@ -187,6 +187,7 @@ fail:
 end:
     return 1;
 }
+# undef ERRbz2
 #endif
 
 #ifdef HAVE_LIBZ
@@ -309,6 +310,7 @@ fail:
 end:
     return 1;
 }
+# undef ERRgz
 #endif
 
 #ifdef HAVE_LIBLZMA
@@ -431,6 +433,7 @@ fail:
 end:
     return 1;
 }
+# undef ERRxz
 #endif
 
 #ifdef HAVE_LIBZSTD
@@ -552,6 +555,7 @@ end:
     free(zout.dst);
     return err;
 }
+# undef ERRzstd
 #endif
 
 static int cat(int in, int out, file_info *restrict fi)
