@@ -3,8 +3,8 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <stdio.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -17,7 +17,7 @@
 const char *exe;
 
 static bool cat;
-static bool force;
+bool force;
 static bool keep;
 static bool quiet;
 static bool verbose;
@@ -89,12 +89,13 @@ static void do_file(int dir, const char *name, const char *path, int fd, struct 
     fi.name_out = name2;
     fi.sz = fi.sd = 0;
 
-    if (fcomp->comp(fd, out, &fi))
+    if (op? decomp(fcomp, fd, out, &fi) : fcomp->comp(fd, out, &fi, 0))
     {
         err = 1;
         goto closure;
     }
-    else if (out > 2)
+
+    if (out > 2)
     {
         futimens(out, ts);
         // ignore errors

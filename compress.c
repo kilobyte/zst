@@ -21,6 +21,8 @@
 #include "compress.h"
 #include "zst.h"
 
+#define U64(x) (*((uint64_t*)(x)))
+
 #define BUFFER_SIZE 32768
 
 #define ERRoom(l,f) do {fprintf(stderr, "%s: %s%s: Out of memory.\n", exe, fi->path, fi->name_##f);goto l;} while (0)
@@ -84,7 +86,7 @@ static const char *bzerr(int e)
 
 #define ERRbz2(l,f) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_##f, bzerr(ret));goto l;} while (0)
 
-static int read_bz2(int in, int out, file_info *restrict fi)
+static int read_bz2(int in, int out, file_info *restrict fi, char *head)
 {
     bz_stream st;
     int ret;
@@ -94,8 +96,19 @@ static int read_bz2(int in, int out, file_info *restrict fi)
     if (ret = BZ2_bzDecompressInit(&st, 0, 0))
         ERRbz2(end, in);
 
+    if (head)
+    {
+        if ((st.avail_in = read(in, inbuf + MLEN, BUFFER_SIZE - MLEN)) == -1)
+            ERRlibc(fail, in);
+        st.avail_in += MLEN;
+        st.next_in = inbuf;
+        U64(inbuf) = U64(head);
+        goto work;
+    }
+
     while ((st.avail_in = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
     {
+work:
         fi->sz += st.avail_in;
         do
         {
@@ -137,7 +150,7 @@ end:
     return 1;
 }
 
-static int write_bz2(int in, int out, file_info *restrict fi)
+static int write_bz2(int in, int out, file_info *restrict fi, char *head)
 {
     bz_stream st;
     int ret;
@@ -215,7 +228,7 @@ static const char *gzerr(int e)
 
 #define ERRgz(l,f) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_##f, gzerr(ret));goto l;} while (0)
 
-static int read_gz(int in, int out, file_info *restrict fi)
+static int read_gz(int in, int out, file_info *restrict fi, char *head)
 {
     z_stream st;
     int ret;
@@ -225,8 +238,19 @@ static int read_gz(int in, int out, file_info *restrict fi)
     if (inflateInit2(&st, 32))
         ERRoom(end, in);
 
+    if (head)
+    {
+        if ((st.avail_in = read(in, inbuf + MLEN, BUFFER_SIZE - MLEN)) == -1)
+            ERRlibc(fail, in);
+        st.avail_in += MLEN;
+        st.next_in = inbuf;
+        U64(inbuf) = U64(head);
+        goto work;
+    }
+
     while ((st.avail_in = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
     {
+work:
         fi->sz += st.avail_in;
         do
         {
@@ -265,7 +289,7 @@ end:
     return 1;
 }
 
-static int write_gz(int in, int out, file_info *restrict fi)
+static int write_gz(int in, int out, file_info *restrict fi, char *head)
 {
     z_stream st;
     int ret;
@@ -343,7 +367,7 @@ static const char *xzerr(lzma_ret e)
 
 #define ERRxz(l,f) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_##f, xzerr(ret));goto l;} while (0)
 
-static int read_xz(int in, int out, file_info *restrict fi)
+static int read_xz(int in, int out, file_info *restrict fi, char *head)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
     lzma_stream st = LZMA_STREAM_INIT;
@@ -352,8 +376,19 @@ static int read_xz(int in, int out, file_info *restrict fi)
     if (lzma_stream_decoder(&st, UINT64_MAX, LZMA_CONCATENATED))
         ERRoom(end, in);
 
+    if (head)
+    {
+        if ((st.avail_in = read(in, inbuf + MLEN, BUFFER_SIZE - MLEN)) == -1)
+            ERRlibc(fail, in);
+        st.avail_in += MLEN;
+        st.next_in = inbuf;
+        U64(inbuf) = U64(head);
+        goto work;
+    }
+
     while ((st.avail_in = read(in, (uint8_t*)(st.next_in = inbuf), BUFFER_SIZE)) > 0)
     {
+work:
         fi->sz += st.avail_in;
         do
         {
@@ -392,7 +427,7 @@ end:
     return 1;
 }
 
-static int write_xz(int in, int out, file_info *restrict fi)
+static int write_xz(int in, int out, file_info *restrict fi, char *head)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
     lzma_stream st = LZMA_STREAM_INIT;
@@ -446,7 +481,7 @@ end:
 #ifdef HAVE_LIBZSTD
 #define ERRzstd(l,f) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_##f, ZSTD_getErrorName(r));goto l;} while (0)
 
-static int read_zstd(int in, int out, file_info *restrict fi)
+static int read_zstd(int in, int out, file_info *restrict fi, char *head)
 {
     int err = 1;
     ZSTD_inBuffer  zin;
@@ -467,10 +502,21 @@ static int read_zstd(int in, int out, file_info *restrict fi)
         ERRzstd(fail, in);
 
     int end_of_frame = 0; // empty file is an error
+
+    if (head)
+    {
+        if ((r = read(in, (char*)zin.src + MLEN, inbufsz - MLEN)) == -1)
+            ERRlibc(fail, in);
+        r += MLEN;
+        U64(zin.src) = U64(head);
+        goto work;
+    }
+
     while ((r = read(in, (void*)zin.src, inbufsz)))
     {
         if (r == -1)
             ERRlibc(fail, in);
+work:
         fi->sz += r;
         zin.size = r;
         zin.pos = 0;
@@ -509,7 +555,7 @@ end:
     return err;
 }
 
-static int write_zstd(int in, int out, file_info *restrict fi)
+static int write_zstd(int in, int out, file_info *restrict fi, char *head)
 {
     int err = 1;
     ZSTD_inBuffer  zin;
@@ -568,10 +614,17 @@ end:
 # undef ERRzstd
 #endif
 
-static int cat(int in, int out, file_info *restrict fi)
+static int cat(int in, int out, file_info *restrict fi, char *head)
 {
     if (out == -1)
         return 0;
+
+    if (head)
+    {
+        if (rewrite(out, head, MLEN))
+            ERRlibc(end, out);
+        fi->sz = fi->sd = MLEN;
+    }
 
     ssize_t r;
     while ((r = copy_file_range(in, 0, out, 0, PTRDIFF_MAX, 0)) > 0)
@@ -618,16 +671,16 @@ compress_info compressors[]={
 
 compress_info decompressors[]={
 #ifdef HAVE_LIBZ
-{"gzip", ".gz",  read_gz},
+{"gzip", ".gz",  read_gz, {0x1f,0x8b,8}, {0xff,0xff,0xff,0xe0}},
 #endif
 #ifdef HAVE_LIBBZ2
-{"bzip2", ".bz2", read_bz2},
+{"bzip2", ".bz2", read_bz2, "BZh01AY&", {0xff,0xff,0xff,0xf0,0xff,0xff,0xff,0xff}},
 #endif
 #ifdef HAVE_LIBLZMA
-{"xz", ".xz",  read_xz},
+{"xz", ".xz",  read_xz, {0xfd,0x37,0x7a,0x58,0x5a}, {0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xf0}},
 #endif
 #ifdef HAVE_LIBZSTD
-{"zstd", ".zst",  read_zstd},
+{"zstd", ".zst",  read_zstd, {0x28,0xb5,0x2f,0xfd}, {0xff,0xff,0xff,0xff}},
 #endif
 {"cat", "/", cat},
 {0, 0, 0},
@@ -659,4 +712,33 @@ compress_info *comp_by_name(const char *name, compress_info *ci)
         if (!strcmp(name, ci->name) || !strcmp(name, ci->ext+1))
             return ci;
     return 0;
+}
+
+static bool verify_magic(const char *bytes, const compress_info *comp)
+{
+    return (U64(bytes) & U64(comp->magicmask)) == U64(comp->magic);
+}
+
+bool decomp(const compress_info *comp, int in, int out, file_info*restrict fi)
+{
+    if (!force)
+        return comp->comp(in, out, fi, 0);
+
+    char buf[MLEN];
+    ssize_t r = read(in, buf, MLEN);
+    if (r == -1)
+        ERRlibc(err, in);
+    if (r < MLEN) // shortest legal file is 9 bytes (zstd w/o checksum)
+    {
+        if (rewrite(out, buf, r))
+            ERRlibc(err, out);
+        fi->sd = fi->sz = r;
+        return 0;
+    }
+
+    return verify_magic(buf, comp)? comp->comp(in, out, fi, buf)
+                                  : cat(in, out, fi, buf);
+
+err:
+    return 1;
 }
