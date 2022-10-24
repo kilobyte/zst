@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "config.h"
 #include <assert.h>
 #include <errno.h>
@@ -520,6 +521,38 @@ end:
 }
 #endif
 
+static int cat(int in, int out, file_info *restrict fi)
+{
+    if (out == -1)
+        return 0;
+
+    ssize_t r;
+    while ((r = copy_file_range(in, 0, out, 0, PTRDIFF_MAX, 0)) > 0)
+    {
+        fi->sz += r;
+        fi->sd += r;
+    }
+    if (!r)
+        return 0;
+    if (errno != EINVAL && errno != EXDEV) // EXDEV regressed in 5.19
+        ERRlibc(end, in);
+
+    char buf[BUFFER_SIZE];
+    while ((r = read(in, buf, sizeof buf)) > 0)
+    {
+        if (rewrite(out, buf, r))
+            ERRlibc(end, out);
+        fi->sz += r;
+        fi->sd += r;
+    }
+    if (r)
+        ERRlibc(end, in);
+    return 0;
+
+end:
+    return 1;
+}
+
 compress_info compressors[]={
 #ifdef HAVE_LIBZ
 {"gzip", ".gz",  write_gz},
@@ -549,6 +582,7 @@ compress_info decompressors[]={
 #ifdef HAVE_LIBZSTD
 {"zstd", ".zst",  read_zstd},
 #endif
+{"cat", "/", cat},
 {0, 0, 0},
 };
 
