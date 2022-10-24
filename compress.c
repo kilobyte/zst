@@ -100,16 +100,20 @@ static int read_bz2(int in, int out, file_info *restrict fi)
     if (ret = BZ2_bzDecompressInit(&st, 0, 0))
         ERRbz2(end, in);
 
-    while (st.avail_in
-           || (st.avail_in = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
+    while ((st.avail_in = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
     {
-        st.next_out  = outbuf;
-        st.avail_out = sizeof outbuf;
-        if ((ret = BZ2_bzDecompress(&st)) && ret != BZ_STREAM_END)
-            ERRbz2(fail, in);
+        fi->sz += st.avail_in;
+        do
+        {
+            st.next_out  = outbuf;
+            st.avail_out = sizeof outbuf;
+            if ((ret = BZ2_bzDecompress(&st)) && ret != BZ_STREAM_END)
+                ERRbz2(fail, in);
 
-        if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
-            ERRlibc(fail, out);
+            if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
+                ERRlibc(fail, out);
+            fi->sd += st.next_out - outbuf;
+        } while (st.avail_in);
     }
     if (st.avail_in)
         ERRlibc(fail, in);
@@ -125,6 +129,7 @@ static int read_bz2(int in, int out, file_info *restrict fi)
 
         if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
             ERRlibc(fail, out);
+        fi->sd += st.next_out - outbuf;
     } while (!ret && !st.avail_out);
     if (ret != BZ_STREAM_END)
         ERRbz2(fail, in);
@@ -226,16 +231,20 @@ static int read_gz(int in, int out, file_info *restrict fi)
     if (inflateInit2(&st, 32))
         ERRoom(end, in);
 
-    while (st.avail_in
-           || (st.avail_in = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
+    while ((st.avail_in = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
     {
-        st.next_out  = outbuf;
-        st.avail_out = sizeof outbuf;
-        if ((ret = inflate(&st, Z_NO_FLUSH)) && ret != Z_STREAM_END)
-            ERRgz(fail, in);
+        fi->sz += st.avail_in;
+        do
+        {
+            st.next_out  = outbuf;
+            st.avail_out = sizeof outbuf;
+            if ((ret = inflate(&st, Z_NO_FLUSH)) && ret != Z_STREAM_END)
+                ERRgz(fail, in);
 
-        if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
-            ERRlibc(fail, out);
+            if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
+                ERRlibc(fail, out);
+            fi->sd += st.next_out - outbuf;
+        } while (st.avail_in);
     }
     if (st.avail_in)
         ERRlibc(fail, in);
@@ -249,6 +258,7 @@ static int read_gz(int in, int out, file_info *restrict fi)
 
         if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
             ERRlibc(fail, out);
+        fi->sd += st.next_out - outbuf;
     } while (!ret);
     if (ret != Z_STREAM_END)
         ERRgz(fail, in);
@@ -348,18 +358,20 @@ static int read_xz(int in, int out, file_info *restrict fi)
     if (lzma_stream_decoder(&st, UINT64_MAX, LZMA_CONCATENATED))
         ERRoom(end, in);
 
-    st.avail_in  = 0;
-
-    while (st.avail_in
-           || (st.avail_in = read(in, (uint8_t*)(st.next_in = inbuf), BUFFER_SIZE)) > 0)
+    while ((st.avail_in = read(in, (uint8_t*)(st.next_in = inbuf), BUFFER_SIZE)) > 0)
     {
-        st.next_out  = outbuf;
-        st.avail_out = sizeof(outbuf);
-        if ((ret = lzma_code(&st, LZMA_RUN)))
-            ERRxz(fail, in);
+        fi->sz += st.avail_in;
+        do
+        {
+            st.next_out  = outbuf;
+            st.avail_out = sizeof(outbuf);
+            if ((ret = lzma_code(&st, LZMA_RUN)))
+                ERRxz(fail, in);
 
-        if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
-            ERRlibc(fail, out);
+            if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
+                ERRlibc(fail, out);
+            fi->sd += st.next_out - outbuf;
+        } while (st.avail_in);
     }
     if (st.avail_in)
         ERRlibc(fail, in);
@@ -373,6 +385,7 @@ static int read_xz(int in, int out, file_info *restrict fi)
 
         if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
             ERRlibc(fail, out);
+        fi->sd += st.next_out - outbuf;
     } while (!ret);
     if (ret != LZMA_STREAM_END)
         ERRxz(fail, in);
@@ -464,6 +477,7 @@ static int read_zstd(int in, int out, file_info *restrict fi)
     {
         if (r == -1)
             ERRlibc(fail, in);
+        fi->sz += r;
         zin.size = r;
         zin.pos = 0;
         while (zin.pos < zin.size)
@@ -472,6 +486,7 @@ static int read_zstd(int in, int out, file_info *restrict fi)
             if (ZSTD_isError(r = ZSTD_decompressStream(stream, &zout, &zin)))
                 ERRzstd(fail, in);
             end_of_frame = !r;
+            fi->sd += zout.pos;
             if (out!=-1 && rewrite(out, zout.dst, zout.pos))
                 ERRlibc(fail, out);
         }
@@ -483,6 +498,7 @@ static int read_zstd(int in, int out, file_info *restrict fi)
         zout.pos = 0;
         if (ZSTD_isError(r = ZSTD_decompressStream(stream, &zout, &zin)))
             ERRzstd(fail, in);
+        fi->sd += zout.pos;
         if (out!=-1 && rewrite(out, zout.dst, zout.pos))
             ERRlibc(fail, out);
         // write first, fail later -- hopefully salvaging some data

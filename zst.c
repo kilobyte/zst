@@ -120,13 +120,13 @@ flink_ok:
 
     if (verbose)
     {
-        if (op)
-            fprintf(stderr, "%s%s\n", path, name2 ?: name);
-        else if (fi.sd)
-            fprintf(stderr, "%s%s: %llu → %llu (%llu%%)\n", path, name, fi.sd, fi.sz,
-                (200 * fi.sz / fi.sd + 1) / 2); // round to closest percent
+        if (fi.sd)
+            fprintf(stderr, "%s%s: %llu %s %llu (%llu%%)\n", path, name, fi.sd,
+                op? "←" : "→", fi.sz, (200 * fi.sz / fi.sd + 1) / 2);
+                // round to closest percent
         else
-            fprintf(stderr, "%s%s: 0 → %llu (header)\n", path, name, fi.sz);
+            fprintf(stderr, "%s%s: 0 %s %llu (header)\n", path, name,
+                op? "←" : "→", fi.sz);
     }
 
 closure:
