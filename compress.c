@@ -74,95 +74,117 @@ static const char *bzerr(int e)
         return "internal error: buffer full";
     case BZ_CONFIG_ERROR:
         return "internal error: bad config";
+    case BZ_RUN_OK:
+        return "internal error: unexpected RUN_OK";
+    case BZ_FLUSH_OK:
+        return "internal error: unexpected FLUSH_OK";
+    case BZ_FINISH_OK:
+        return "internal error: unexpected FINISH_OK";
+    case BZ_STREAM_END:
+        return "internal error: unexpected STREAM_END";
 # endif
     default:
         return "invalid error?!?";
     }
 }
 
-#define ERRbz2(l,f) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_##f, bzerr(bzerror));goto l;} while (0)
+#define ERRbz2(l,f) do {fprintf(stderr, "%s: %s%s: %s\n", exe, fi->path, fi->name_##f, bzerr(ret));goto l;} while (0)
 
 static int read_bz2(int in, int out, file_info *restrict fi)
 {
-    BZFILE* b;
-    FILE*   f = 0;
-    int     nBuf;
-    char    buf[BUFFER_SIZE];
-    int     bzerror;
+    bz_stream st;
+    int ret;
+    char inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
 
-    if ((in = dupa(in)) == -1)
-        ERRlibc(end, in);
-    f = fdopen(in, "rb");
-    b = BZ2_bzReadOpen(&bzerror, f, 0, 0, NULL, 0);
-    if (bzerror)
+    bzero(&st, sizeof st);
+    if (ret = BZ2_bzDecompressInit(&st, 0, 0))
         ERRbz2(end, in);
 
-    bzerror = BZ_OK;
-    while (bzerror == BZ_OK)
+    while (st.avail_in
+           || (st.avail_in = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
     {
-        nBuf = BZ2_bzRead(&bzerror, b, buf, BUFFER_SIZE);
-        if (out!=-1 && rewrite(out, buf, nBuf))
+        st.next_out  = outbuf;
+        st.avail_out = sizeof outbuf;
+        if ((ret = BZ2_bzDecompress(&st)) && ret != BZ_STREAM_END)
+            ERRbz2(fail, in);
+
+        if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
             ERRlibc(fail, out);
     }
-    if (bzerror != BZ_STREAM_END)
+    if (st.avail_in)
+        ERRlibc(fail, in);
+    if (ret == BZ_STREAM_END)
+        goto ok;
+
+    // Flush the stream    
+    do
+    {
+        st.next_out  = outbuf;
+        st.avail_out = sizeof outbuf;
+        ret = BZ2_bzDecompress(&st);
+
+        if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
+            ERRlibc(fail, out);
+    } while (!ret && !st.avail_out);
+    if (ret != BZ_STREAM_END)
         ERRbz2(fail, in);
-    BZ2_bzReadClose(&bzerror, b);
-    fclose(f);
+ok:
+    BZ2_bzDecompressEnd(&st);
     return 0;
 
 fail:
-    BZ2_bzReadClose(&bzerror, b);
+    BZ2_bzDecompressEnd(&st);
 end:
-    if (f)
-        fclose(f);
     return 1;
 }
 
 static int write_bz2(int in, int out, file_info *restrict fi)
 {
-    BZFILE* b;
-    FILE*   f = 0;
-    int     nBuf;
-    char    buf[BUFFER_SIZE];
-    int     bzerror;
+    bz_stream st;
+    int ret;
+    char inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
 
-    if ((out = dupa(out)) == -1)
-        ERRlibc(end, out);
-    f = fdopen(out, "wb");
-    b = BZ2_bzWriteOpen(&bzerror, f, level?:9, 0, 0);
-    if (bzerror)
-        ERRbz2(end, out);
+    bzero(&st, sizeof st);
+    if ((ret = BZ2_bzCompressInit(&st, level?:9, 0, 0)))
+        ERRbz2(end, in);
 
-    bzerror = BZ_OK;
-    while ((nBuf = read(in, buf, BUFFER_SIZE)) > 0)
+    while ((st.avail_in = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
     {
-        BZ2_bzWrite(&bzerror, b, buf, nBuf);
-        if (bzerror)
-            ERRbz2(fail, out);
+        fi->sd += st.avail_in;
+        do
+        {
+            st.next_out  = outbuf;
+            st.avail_out = sizeof(outbuf);
+            if ((ret = BZ2_bzCompress(&st, BZ_RUN)) && ret != BZ_RUN_OK)
+                ERRbz2(fail, in);
+
+            if (rewrite(out, outbuf, st.next_out - outbuf))
+                ERRlibc(fail, out);
+            fi->sz += st.next_out - outbuf;
+        } while (st.avail_in);
     }
-    if (nBuf)
+    if (st.avail_in)
         ERRlibc(fail, in);
 
+    // Flush the stream
+    do
     {
-        unsigned int sd_lo32, sd_hi32, sz_lo32, sz_hi32;
-        BZ2_bzWriteClose64(&bzerror, b, 0, &sd_lo32,&sd_hi32, &sz_lo32,&sz_hi32);
-        fi->sd = ((uint64_t)sd_hi32)<<32 | sd_lo32;
-        fi->sz = ((uint64_t)sz_hi32)<<32 | sz_lo32;
-    }
-    if (bzerror)
-        ERRbz2(end, out);
-    if (fclose(f))
-    {
-        f = 0;
-        ERRlibc(end, out);
-    }
+        st.next_out  = outbuf;
+        st.avail_out = sizeof(outbuf);
+        ret = BZ2_bzCompress(&st, BZ_FINISH);
+
+        if (rewrite(out, outbuf, st.next_out - outbuf))
+            ERRlibc(fail, out);
+        fi->sz += st.next_out - outbuf;
+    } while (ret == BZ_FINISH_OK);
+    if (ret != BZ_STREAM_END)
+        ERRbz2(fail, in);
+    BZ2_bzCompressEnd(&st);
     return 0;
 
 fail:
-    BZ2_bzWriteClose(&bzerror, b, 0,0,0);
+    BZ2_bzCompressEnd(&st);
 end:
-    if (f)
-        fclose(f);
     return 1;
 }
 #endif
