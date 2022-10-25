@@ -89,7 +89,7 @@ static void do_file(int dir, const char *name, const char *path, int fd, struct 
     fi.name_out = name2;
     fi.sz = fi.sd = 0;
 
-    if (op? decomp(fcomp, fd, out, &fi) : fcomp->comp(fd, out, &fi, 0))
+    if ((op && cat)? decomp(fcomp, fd, out, &fi) : fcomp->comp(fd, out, &fi, 0))
     {
         err = 1;
         goto closure;
