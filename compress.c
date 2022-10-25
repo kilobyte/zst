@@ -577,6 +577,7 @@ static int write_zstd(int in, int out, file_info *restrict fi, char *head)
     assert(level <= 19);
     if (ZSTD_isError(r = ZSTD_initCStream(stream, level?:3)))
         ERRzstd(fail, in);
+    ZSTD_CCtx_setParameter(stream, ZSTD_c_checksumFlag, 1);
 
     while ((r = read(in, (void*)zin.src, inbufsz)))
     {
