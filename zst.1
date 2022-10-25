@@ -69,9 +69,10 @@ The source file won't be removed after [de]compression.
 .TP
 .B -f
 Will overwrite existing files.  Allows writing compressed data to a
-terminal.
-.B [FIXME]
-.I Does not pass through uncompressed data yet.
+terminal.  When
+.B -c
+is given and the data is not in the expected format, it will be passed
+through unmodified.
 .TP
 .B -r
 If a directory is among file names specified on the command line, all files
