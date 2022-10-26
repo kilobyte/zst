@@ -687,22 +687,28 @@ end:
 }
 
 compress_info compressors[]={
+#ifdef HAVE_LIBZSTD
+{"zstd", ".zst",  write_zstd},
+#endif
+#ifdef HAVE_LIBLZMA
+{"xz", ".xz",  write_xz},
+#endif
 #ifdef HAVE_LIBZ
 {"gzip", ".gz",  write_gz},
 #endif
 #ifdef HAVE_LIBBZ2
 {"bzip2", ".bz2", write_bz2},
 #endif
-#ifdef HAVE_LIBLZMA
-{"xz", ".xz",  write_xz},
-#endif
-#ifdef HAVE_LIBZSTD
-{"zstd", ".zst",  write_zstd},
-#endif
 {0, 0, 0},
 };
 
 compress_info decompressors[]={
+#ifdef HAVE_LIBZSTD
+{"zstd", ".zst",  read_zstd, {0x28,0xb5,0x2f,0xfd}, {0xff,0xff,0xff,0xff}},
+#endif
+#ifdef HAVE_LIBLZMA
+{"xz", ".xz",  read_xz, {0xfd,0x37,0x7a,0x58,0x5a}, {0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xf0}},
+#endif
 #ifdef HAVE_LIBZ
 {"gzip", ".gz",  read_gz, {0x1f,0x8b,8}, {0xff,0xff,0xff,0xe0}},
 #endif
@@ -710,12 +716,6 @@ compress_info decompressors[]={
 {"bzip2", ".bz2", read_bz2, "BZh01AY&", {0xff,0xff,0xff,0xf0,0xff,0xff,0xff,0xff}},
 // empty file has no BlockHeader
 {"", "/", read_bz2, "BZh0\x17rE8", {0xff,0xff,0xff,0xf0,0xff,0xff,0xff,0xff}},
-#endif
-#ifdef HAVE_LIBLZMA
-{"xz", ".xz",  read_xz, {0xfd,0x37,0x7a,0x58,0x5a}, {0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xf0}},
-#endif
-#ifdef HAVE_LIBZSTD
-{"zstd", ".zst",  read_zstd, {0x28,0xb5,0x2f,0xfd}, {0xff,0xff,0xff,0xff}},
 #endif
 {0, 0, 0},
 };
