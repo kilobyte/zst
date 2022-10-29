@@ -537,6 +537,13 @@ work:
         }
     }
 
+    if (!fi->sz)
+    {
+        // old versions of libzstd give a weird error for empty files
+        GRIPE(in, "unexpected end of file\n");
+        goto fail;
+    }
+
     // flush
     if (!end_of_frame)
     {
