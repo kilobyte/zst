@@ -731,7 +731,7 @@ bool decomp(const compress_info *comp, int in, int out, file_info*restrict fi)
         ERRlibc(err, in);
     if (r < MLEN) // shortest legal file is 9 bytes (zstd w/o checksum)
     {
-        if (rewrite(out, buf, r))
+        if (out!=-1 && rewrite(out, buf, r))
             ERRlibc(err, out);
         fi->sd = fi->sz = r;
         return 0;
