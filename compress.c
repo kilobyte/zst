@@ -70,6 +70,8 @@ static const char *bzerr(int e)
         return "internal error: buffer full";
     case BZ_CONFIG_ERROR:
         return "internal error: bad config";
+    case BZ_OK:
+        return "internal_error: OK when not obviously not OK";
     case BZ_RUN_OK:
         return "internal error: unexpected RUN_OK";
     case BZ_FLUSH_OK:
@@ -138,6 +140,8 @@ work:
             ERRlibc(fail, out);
         fi->sd += st.next_out - outbuf;
     } while (!ret && !st.avail_out);
+    if (ret == BZ_OK)
+        ret = BZ_UNEXPECTED_EOF; // happens on very short files
     if (ret != BZ_STREAM_END)
         ERRbz2(fail, in);
 ok:
