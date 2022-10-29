@@ -40,7 +40,7 @@ static int flink(int dir, int fd, const char *newname)
 }
 
 #define FAIL(msg, ...) do {fprintf(stderr, "%s: " msg, exe, __VA_ARGS__); err=1; goto closure;} while(0)
-static void do_file(int dir, const char *name, const char *path, int fd, struct timespec *ts)
+static void do_file(int dir, const char *name, const char *path, int fd, struct stat *restrict st)
 {
     int out = -1;
     bool notmp = 0;
@@ -103,8 +103,19 @@ static void do_file(int dir, const char *name, const char *path, int fd, struct 
 
     if (out > 2)
     {
-        futimens(out, ts);
-        // ignore errors
+        if (st)
+        {
+            struct timespec ts[2];
+            ts[0] = st->st_atim;
+            ts[1] = st->st_mtim;
+            futimens(out, ts);
+            // ignore errors
+
+            int perms = st->st_mode & 07777;
+            if (fchown(out, st->st_uid, st->st_gid))
+                perms &= 0777;
+            fchmod(out, perms);
+        }
 
         if (!notmp && flink(dir, out, name2))
         {
@@ -163,12 +174,7 @@ static void do_dir(int dir, const char *name, const char *path)
         return fail("can't stat %s%s: %m\n", path, name);
 
     if (S_ISREG(sb.st_mode))
-    {
-        struct timespec ts[2];
-        ts[0] = sb.st_atim;
-        ts[1] = sb.st_mtim;
-        return do_file(dir, name, path, dirfd, ts);
-    }
+        return do_file(dir, name, path, dirfd, &sb);
     if (!recurse)
         return fail("%s%s is not a regular file - ignored\n", path, name);
     if (!S_ISDIR(sb.st_mode))
