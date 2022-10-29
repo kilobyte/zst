@@ -13,6 +13,7 @@
 #include "zst.h"
 
 #define die(...) do {fprintf(stderr, __VA_ARGS__); exit(1);} while(0)
+#define ARRAYSZ(x) (sizeof(x) / sizeof((x)[0]))
 
 const char *exe;
 
@@ -190,12 +191,34 @@ static void do_dir(int dir, const char *name, const char *path)
     closedir(d);
 }
 
+static const char* guess_prog(void)
+{
+    const char *progs[][3] =
+    {
+        {"gzip",  "gunzip",  "gzcat"},
+        {"bzip2", "bunzip2", "bzcat"},
+        {"xz",    "unxz",    "xzcat"},
+        {"zstd",  "unzstd",  "zstdcat"},
+    };
+
+    for (int i=0; i<ARRAYSZ(progs); i++)
+        for (int j=0; j<3; j++)
+            if (!strcmp(exe, progs[i][j]))
+            {
+                op = j? 'd' : 0;
+                cat = (j > 1);
+                return progs[i][0];
+            }
+
+    return "zstd";
+}
+
 int main(int argc, char **argv)
 {
     exe = strrchr(argv[0], '/');
     exe = exe? exe+1 : argv[0];
 
-    const char *prog = "zstd";
+    const char *prog = guess_prog();
 
     int opt;
     while ((opt = getopt(argc, argv, "cdzfklnqvrthF:123456789")) != -1)

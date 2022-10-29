@@ -34,4 +34,4 @@ This project is only an early (but working!) stab.
  * [ ] io optimizations
  * [ ] decent test coverage
  * [ ] dlopen non-essential compressors?
- * [ ] behave according to argv[0]
+ * [x] behave according to argv[0]
