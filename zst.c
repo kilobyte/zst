@@ -43,6 +43,7 @@ static int flink(int dir, int fd, const char *newname)
 static void do_file(int dir, const char *name, const char *path, int fd, struct timespec *ts)
 {
     int out = -1;
+    bool notmp = 0;
     char *name2 = 0;
     compress_info *fcomp = comp;
 
@@ -78,11 +79,13 @@ static void do_file(int dir, const char *name, const char *path, int fd, struct 
             if (errno != ENOENT)
                 FAIL("%s%s: %m\n", path, name2);
         }
-        out = openat(dir, ".", O_TMPFILE|O_WRONLY, 0666);
+        out = openat(dir, ".", O_TMPFILE|O_WRONLY|O_CLOEXEC, 0666);
         if (out == -1)
         {
-            // TODO: fallback
-            FAIL("can't create tmpfile for %s%s: %m\n", path, name2);
+            notmp = 1;
+            out = openat(dir, name2, O_CREAT|O_TRUNC|O_WRONLY|O_CLOEXEC|O_NOFOLLOW, 0600);
+            if (out == -1)
+                FAIL("can't create %s%s: %m\n", path, name2);
         }
     }
 
@@ -103,7 +106,7 @@ static void do_file(int dir, const char *name, const char *path, int fd, struct 
         futimens(out, ts);
         // ignore errors
 
-        if (flink(dir, out, name2))
+        if (!notmp && flink(dir, out, name2))
         {
             if (errno==EEXIST && force)
             {
@@ -117,6 +120,7 @@ static void do_file(int dir, const char *name, const char *path, int fd, struct 
             FAIL("can't link %s%s: %m\n", path, name2);
         }
 
+        notmp = 0;
 flink_ok:
         if (!keep && unlinkat(dir, name, 0))
             FAIL("can't remove %s%s: %m\n", path, name);
@@ -134,6 +138,9 @@ flink_ok:
     }
 
 closure:
+    if (notmp)
+        if (unlinkat(dir, name2, 0))
+            fprintf(stderr, "%s: can't remove temporary file %s%s: %m\n", exe, path, name2);
     if (fd > 2)
         close(fd);
     if (out > 2)
