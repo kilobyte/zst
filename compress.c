@@ -585,9 +585,9 @@ static int write_zstd(int in, int out, file_info *restrict fi, char *head)
     if (!stream)
         ERRoom(end, in);
     // unlike all other compressors, zstd levels go 1..19 (..22 as "extreme")
-    level = (level - 1) * 18 / 8 + 1;
-    assert(level <= 19);
-    if (ZSTD_isError(r = ZSTD_initCStream(stream, level?:3)))
+    int zlevel = (level - 1) * 18 / 8 + 1;
+    assert(zlevel <= 19);
+    if (ZSTD_isError(r = ZSTD_initCStream(stream, zlevel?:3)))
         ERRzstd(fail, in);
     ZSTD_CCtx_setParameter(stream, ZSTD_c_checksumFlag, 1);
 
