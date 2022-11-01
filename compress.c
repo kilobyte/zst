@@ -26,9 +26,10 @@
 #define BUFFER_SIZE 32768
 
 #define GRIPE(f,msg,...) fprintf(stderr, "%s: %s%s: " msg, exe, fi->path, fi->name_##f?: "std" #f,##__VA_ARGS__)
-#define ERRoom(l,f) do {GRIPE(f, "Out of memory.\n");goto l;} while (0)
-#define ERRueof(l,f) do {GRIPE(f, "unexpected end of file\n");goto l;} while (0)
-#define ERRlibc(l,f) do {GRIPE(f, "%m\n");goto l;} while (0)
+#define ERR(l,f,msg,...) do {GRIPE(f, msg "\n",##__VA_ARGS__);goto l;} while(0)
+#define ERRoom(l,f) ERR(l,f,"Out of memory.")
+#define ERRueof(l,f) ERR(l,f,"unexpected end of file")
+#define ERRlibc(l,f) ERR(l,f,"%m")
 
 static int rewrite(int fd, const void *buf, size_t len)
 {
@@ -87,7 +88,7 @@ static const char *bzerr(int e)
     }
 }
 
-#define ERRbz2(l,f) do {GRIPE(f, "%s\n", bzerr(ret));goto l;} while (0)
+#define ERRbz2(l,f) ERR(l,f,"%s", bzerr(ret))
 
 static int read_bz2(int in, int out, file_info *restrict fi, char *head)
 {
@@ -231,7 +232,7 @@ static const char *gzerr(int e)
     }
 }
 
-#define ERRgz(l,f) do {GRIPE(f, "%s\n", gzerr(ret));goto l;} while (0)
+#define ERRgz(l,f) ERR(l,f,"%s\n", gzerr(ret))
 
 static int read_gz(int in, int out, file_info *restrict fi, char *head)
 {
@@ -370,7 +371,7 @@ static const char *xzerr(lzma_ret e)
     }
 }
 
-#define ERRxz(l,f) do {GRIPE(f, "%s\n", xzerr(ret));goto l;} while (0)
+#define ERRxz(l,f) ERR(l,f, "%s\n", xzerr(ret))
 
 static int read_xz(int in, int out, file_info *restrict fi, char *head)
 {
@@ -484,7 +485,7 @@ end:
 #endif
 
 #ifdef HAVE_LIBZSTD
-#define ERRzstd(l,f) do {GRIPE(f, "%s\n", ZSTD_getErrorName(r));goto l;} while (0)
+#define ERRzstd(l,f) ERR(l,f, "%s\n", ZSTD_getErrorName(r))
 
 static int read_zstd(int in, int out, file_info *restrict fi, char *head)
 {
