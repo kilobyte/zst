@@ -40,7 +40,7 @@ static int flink(int dir, int fd, const char *newname)
 }
 
 #define FAIL(msg, ...) do {fprintf(stderr, "%s: " msg, exe, __VA_ARGS__); err=1; goto closure;} while(0)
-static void do_file(int dir, const char *name, const char *path, int fd, struct stat *restrict st)
+static void do_file(int dir, const char *name, const char *path, int fd, struct stat64 *restrict st)
 {
     int out = -1;
     bool notmp = 0;
@@ -79,11 +79,11 @@ static void do_file(int dir, const char *name, const char *path, int fd, struct 
             if (errno != ENOENT)
                 FAIL("%s%s: %m\n", path, name2);
         }
-        out = openat(dir, ".", O_TMPFILE|O_WRONLY|O_CLOEXEC, 0666);
+        out = openat(dir, ".", O_TMPFILE|O_WRONLY|O_CLOEXEC|O_LARGEFILE, 0666);
         if (out == -1)
         {
             notmp = 1;
-            out = openat(dir, name2, O_CREAT|O_TRUNC|O_WRONLY|O_CLOEXEC|O_NOFOLLOW, 0600);
+            out = openat(dir, name2, O_CREAT|O_TRUNC|O_WRONLY|O_CLOEXEC|O_LARGEFILE|O_NOFOLLOW, 0600);
             if (out == -1)
                 FAIL("can't create %s%s: %m\n", path, name2);
         }
@@ -165,12 +165,12 @@ closure:
 // may be actually a file
 static void do_dir(int dir, const char *name, const char *path)
 {
-    int dirfd = openat(dir, name, O_RDONLY|O_NONBLOCK|O_CLOEXEC);
+    int dirfd = openat(dir, name, O_RDONLY|O_NONBLOCK|O_CLOEXEC|O_LARGEFILE);
     if (dirfd == -1)
         return fail("can't read %s%s: %m\n", path, name);
 
-    struct stat sb;
-    if (fstat(dirfd, &sb))
+    struct stat64 sb;
+    if (fstat64(dirfd, &sb))
         return fail("can't stat %s%s: %m\n", path, name);
 
     if (S_ISREG(sb.st_mode))
