@@ -219,7 +219,7 @@ static const char* guess_prog(void)
             if (!strcmp(exe, progs[i][j]))
             {
                 op = j? 'd' : 0;
-                cat = (j > 1);
+                cat = j == 2;
                 return progs[i][0];
             }
 
