@@ -238,6 +238,7 @@ static int read_gz(int in, int out, file_info *restrict fi, char *head)
 {
     z_stream st;
     int ret;
+    ssize_t len;
     Bytef inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
 
     bzero(&st, sizeof st);
@@ -246,16 +247,17 @@ static int read_gz(int in, int out, file_info *restrict fi, char *head)
 
     if (head)
     {
-        if ((st.avail_in = read(in, inbuf + MLEN, BUFFER_SIZE - MLEN)) == -1)
+        if ((len = read(in, inbuf + MLEN, BUFFER_SIZE - MLEN)) == -1)
             ERRlibc(fail, in);
-        st.avail_in += MLEN;
+        st.avail_in = len + MLEN;
         st.next_in = inbuf;
         U64(inbuf) = U64(head);
         goto work;
     }
 
-    while ((st.avail_in = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
+    while ((len = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
     {
+        st.avail_in = len;
 work:
         fi->sz += st.avail_in;
         do
@@ -299,15 +301,17 @@ static int write_gz(int in, int out, file_info *restrict fi, char *head)
 {
     z_stream st;
     int ret;
+    ssize_t len;
     Bytef inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
 
     bzero(&st, sizeof st);
     if ((ret = deflateInit2(&st, level?:6, Z_DEFLATED, 31, 9, 0)))
         ERRgz(end, in);
 
-    while ((st.avail_in = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
+    while ((len = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
     {
-        fi->sd += st.avail_in;
+        st.avail_in = len;
+        fi->sd += len;
         do
         {
             st.next_out  = outbuf;
@@ -320,7 +324,7 @@ static int write_gz(int in, int out, file_info *restrict fi, char *head)
             fi->sz += st.next_out - outbuf;
         } while (st.avail_in);
     }
-    if (st.avail_in)
+    if (len)
         ERRlibc(fail, in);
 
     // Flush the stream
