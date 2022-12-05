@@ -733,25 +733,27 @@ static bool verify_magic(const char *bytes, const compress_info *comp)
     return (U64(bytes) & U64(comp->magicmask)) == U64(comp->magic);
 }
 
-bool decomp(const compress_info *comp, int in, int out, file_info*restrict fi)
+bool decomp(bool can_cat, int in, int out, file_info*restrict fi)
 {
-    if (!force)
-        return comp->comp(in, out, fi, 0);
-
     char buf[MLEN];
     ssize_t r = read(in, buf, MLEN);
     if (r == -1)
         ERRlibc(err, in);
     if (r < MLEN) // shortest legal file is 9 bytes (zstd w/o checksum)
     {
+        if (!can_cat)
+            ERR(err, in, "not a compressed file");
         if (out!=-1 && rewrite(out, buf, r))
             ERRlibc(err, out);
         fi->sd = fi->sz = r;
         return 0;
     }
 
-    return verify_magic(buf, comp)? comp->comp(in, out, fi, buf)
-                                  : cat(in, out, fi, buf);
+    for (const compress_info *ci = decompressors; ci->comp; ci++)
+        if (verify_magic(buf, ci) && (can_cat || ci->comp!=cat))
+            return ci->comp(in, out, fi, buf);
+
+    ERR(err, in, "not a compressed file");
 
 err:
     return 1;

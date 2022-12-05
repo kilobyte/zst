@@ -27,7 +27,7 @@ Status
 
 This project is only an early (but working!) stab.
 
- * [ ] guess algorithm via header
+ * [x] guess algorithm via header
  * [ ] threaded [de]compression
  * [ ] threading when multiple files
  * [ ] sparse files

@@ -8,5 +8,5 @@ for a in $HD; do
 done
 
 $Z -F$TOOL *
-$Z -dF$TOOL *$EXT
+$Z -d *$EXT
 ! grep -lv '^meow$' *
