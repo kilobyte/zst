@@ -1,0 +1,32 @@
+Source: zst
+Section: utils
+Priority: optional
+Maintainer: Adam Borowski <kilobyte@angband.pl>
+Build-Depends: debhelper-compat (= 13),
+ cmake,
+ libbz2-dev,
+ liblzma-dev,
+ libz-dev,
+ libzstd-dev,
+ bzip2,
+ xz-utils,
+ zstd,
+Standards-Version: 4.6.1
+Rules-Requires-Root: no
+Homepage: https://github.com/kilobyte/zst
+Vcs-Browser: https://github.com/kilobyte/zst/tree/debian
+Vcs-Git: https://github.com/kilobyte/zst -b debian
+
+Package: zst
+Architecture: any
+Multi-Arch: foreign
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: CLI tool for zstd (and other) compression
+ This is an alternate tool for zstd compression, one that takes a lot
+ less space than the official one.  It also behaves in a way consistent
+ with other Unix compressors: the level goes only up to 9, the original
+ copy of the file is not kept, etc.
+ .
+ The executable can also replace gzip xz bzip2.

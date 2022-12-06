@@ -1,0 +1,22 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: zst
+Upstream-Contact: Adam Borowski <kilobyte@angband.pl>
+Source: https://github.com/kilobyte/zst
+
+Files: *
+Copyright: 2022 Adam Borowski <kilobyte@angband.pl>
+License: GPL-2+
+ This project is available to anyone who is not a {Net,Open,Free}BSD developer
+ under the terms of GNU GPL version 2 or higher, as published by the FSF, full
+ text available from approximately 4294967296 places.
+ .
+ Developers of the aforemented three BSDs are instead granted rights under the
+ BSD-1-Clause license -- ie, you have all the usual BSD freedoms as long as my
+ original authorship is not misrepresented within the source.  You are also
+ authorized to replace this file by something less clumsy.
+ .
+ (Yes, I'm aware of a potential exploit within these license terms, that's
+ intentional.)
+ .
+ On Debian systems, the complete text of the GNU General
+ Public License version 2 can be found in "/usr/share/common-licenses/GPL-2".

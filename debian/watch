@@ -1,0 +1,2 @@
+version=4
+https://github.com/kilobyte/zst/tags (?:.*?/)?v(\d[\d.]*)\.tar\..z debian uupdate
