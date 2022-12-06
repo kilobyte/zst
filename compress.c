@@ -340,11 +340,11 @@ static int write_gz(int in, int out, file_info *restrict fi, char *head)
     } while (!ret);
     if (ret != Z_STREAM_END)
         ERRgz(fail, in);
-    inflateEnd(&st);
+    deflateEnd(&st);
     return 0;
 
 fail:
-    inflateEnd(&st);
+    deflateEnd(&st);
 end:
     return 1;
 }
