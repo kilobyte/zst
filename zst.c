@@ -81,7 +81,9 @@ static void do_file(int dir, const char *name, const char *path, int fd, struct 
             if (errno != ENOENT)
                 FAIL("%s%s: %m\n", path, name2);
         }
+#ifdef O_TMPFILE
         out = openat(dir, ".", O_TMPFILE|O_WRONLY|O_CLOEXEC|O_LARGEFILE, 0666);
+#endif
         if (out == -1)
         {
             notmp = 1;
