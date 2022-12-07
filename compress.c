@@ -641,6 +641,7 @@ static int cat(int in, int out, file_info *restrict fi, char *head)
     }
 
     ssize_t r;
+#ifdef HAVE_COPY_FILE_RANGE
     while ((r = copy_file_range(in, 0, out, 0, PTRDIFF_MAX, 0)) > 0)
     {
         fi->sz += r;
@@ -650,6 +651,7 @@ static int cat(int in, int out, file_info *restrict fi, char *head)
         return 0;
     if (errno != EINVAL && errno != EXDEV) // EXDEV regressed in 5.19
         ERRlibc(end, in);
+#endif
 
     char buf[BUFFER_SIZE];
     while ((r = read(in, buf, sizeof buf)) > 0)
