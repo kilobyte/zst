@@ -34,8 +34,10 @@ static int flink(int dir, int fd, const char *newname)
     char proclink[26];
     sprintf(proclink, "/proc/self/fd/%d", fd);
     int ret = linkat(AT_FDCWD, proclink, dir, newname, AT_SYMLINK_FOLLOW);
+#ifdef AT_EMPTY_PATH
     if (ret && errno==ENOENT)
         ret = linkat(fd, "", dir, newname, AT_EMPTY_PATH);
+#endif
     return ret;
 }
 
