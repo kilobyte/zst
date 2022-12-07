@@ -12,6 +12,14 @@
 #include "compress.h"
 #include "zst.h"
 
+#ifndef HAVE_STAT64
+# define stat64 stat
+# define fstat64 fstat
+#endif
+#ifndef O_LARGEFILE
+# define O_LARGEFILE 0
+#endif
+
 #define die(...) do {fprintf(stderr, __VA_ARGS__); exit(1);} while(0)
 #define ARRAYSZ(x) (sizeof(x) / sizeof((x)[0]))
 
