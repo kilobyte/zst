@@ -247,6 +247,14 @@ int main(int argc, char **argv)
     exe = strrchr(argv[0], '/');
     exe = exe? exe+1 : argv[0];
 
+    if (match_suffix(exe, "less"))
+    {
+        putenv("LESSOPEN=||-zst -cdfq -- %s");
+        argv[0] = "/usr/bin/less";
+        execve(*argv, argv, environ);
+        die("%s: couldn't exec %s: %m\n", exe, *argv);
+    }
+
     const char *prog = guess_prog();
 
     int opt;
