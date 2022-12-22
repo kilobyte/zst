@@ -702,7 +702,7 @@ compress_info decompressors[]={
 {0, 0, 0},
 };
 
-static int match_suffix(const char *txt, const char *ext)
+int match_suffix(const char *txt, const char *ext)
 {
     int tl,el;
 
