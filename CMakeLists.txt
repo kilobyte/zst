@@ -22,6 +22,8 @@ find_lib(Z z gzread)
 find_lib(BZ2 bz2 BZ2_bzBuffToBuffCompress)
 find_lib(LZMA lzma lzma_code)
 find_lib(ZSTD zstd ZSTD_compress)
+CHECK_FUNCTION_EXISTS(copy_file_range HAVE_COPY_FILE_RANGE)
+CHECK_FUNCTION_EXISTS(stat64 HAVE_STAT64)
 
 function(add_flag flag)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${flag}" PARENT_SCOPE)

@@ -12,6 +12,14 @@
 #include "compress.h"
 #include "zst.h"
 
+#ifndef HAVE_STAT64
+# define stat64 stat
+# define fstat64 fstat
+#endif
+#ifndef O_LARGEFILE
+# define O_LARGEFILE 0
+#endif
+
 #define die(...) do {fprintf(stderr, __VA_ARGS__); exit(1);} while(0)
 #define ARRAYSZ(x) (sizeof(x) / sizeof((x)[0]))
 
@@ -34,8 +42,10 @@ static int flink(int dir, int fd, const char *newname)
     char proclink[26];
     sprintf(proclink, "/proc/self/fd/%d", fd);
     int ret = linkat(AT_FDCWD, proclink, dir, newname, AT_SYMLINK_FOLLOW);
+#ifdef AT_EMPTY_PATH
     if (ret && errno==ENOENT)
         ret = linkat(fd, "", dir, newname, AT_EMPTY_PATH);
+#endif
     return ret;
 }
 
@@ -79,7 +89,9 @@ static void do_file(int dir, const char *name, const char *path, int fd, struct 
             if (errno != ENOENT)
                 FAIL("%s%s: %m\n", path, name2);
         }
+#ifdef O_TMPFILE
         out = openat(dir, ".", O_TMPFILE|O_WRONLY|O_CLOEXEC|O_LARGEFILE, 0666);
+#endif
         if (out == -1)
         {
             notmp = 1;
@@ -215,6 +227,9 @@ static const char* guess_prog(void)
         {"bzip3", "bunzip3", "bz3cat"},
         {"lz4",   "unlz4",   "lz4cat"},
         {"lzop",  "",        ""},
+        {"brotli","unbrotli",""},
+        {"lzip",  "",        ""},
+        {"pack",  "",        ""},
         {"compress", "uncompress", ""},
     };
 
@@ -234,6 +249,14 @@ int main(int argc, char **argv)
 {
     exe = strrchr(argv[0], '/');
     exe = exe? exe+1 : argv[0];
+
+    if (match_suffix(exe, "less"))
+    {
+        putenv("LESSOPEN=||-zst -cdfq -- %s");
+        argv[0] = "/usr/bin/less";
+        execve(*argv, argv, environ);
+        die("%s: couldn't exec %s: %m\n", exe, *argv);
+    }
 
     const char *prog = guess_prog();
 

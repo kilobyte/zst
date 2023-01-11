@@ -24,3 +24,5 @@ compress_info *comp_by_ext(const char *name, compress_info *ci);
 compress_info *comp_by_name(const char *name, compress_info *ci);
 
 bool decomp(bool can_cat, int in, int out, file_info*restrict fi);
+
+int match_suffix(const char *txt, const char *ext);
