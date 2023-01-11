@@ -11,7 +11,7 @@ Build-Depends: debhelper-compat (= 13),
  bzip2,
  xz-utils,
  zstd,
-Standards-Version: 4.6.1
+Standards-Version: 4.6.2
 Rules-Requires-Root: no
 Homepage: https://github.com/kilobyte/zst
 Vcs-Browser: https://github.com/kilobyte/zst/tree/debian
