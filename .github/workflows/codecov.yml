@@ -1,0 +1,31 @@
+name: Codecov
+on: [push, pull_request]
+env:
+  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+jobs:
+  ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Update apt
+      run: sudo apt-get update -qq
+    - name: Install dependencies
+      run: sudo apt-get install -y
+               cmake
+               libz-dev
+               libbz2-dev
+               liblzma-dev
+               libzstd-dev
+               bzip2
+               zstd
+               xz-utils
+    - uses: actions/checkout@v3
+    - name: cmake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_C_FLAGS="-O0 -g --coverage"
+    - name: compile
+      run: make -C ${{github.workspace}}/build
+    - name: run
+      run: cd ${{github.workspace}}/build && ctest --output-on-failure
+    - name: Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        gcov: true
