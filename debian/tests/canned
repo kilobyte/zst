@@ -1,0 +1,6 @@
+#!/bin/sh
+
+cd debian/tests
+for f in zst xz gz bz2; do
+    zst -cd meow.$f|zst -F $f|cmp -b meow.$f - || exit 1
+done

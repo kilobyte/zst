@@ -1,0 +1,4 @@
+debian/tests/meow.zst
+debian/tests/meow.xz
+debian/tests/meow.bz2
+debian/tests/meow.gz
