@@ -586,9 +586,9 @@ static int write_zstd(int in, int out, file_info *restrict fi, char *head)
     if (!stream)
         ERRoom(end, in);
     // unlike all other compressors, zstd levels go 1..19 (..22 as "extreme")
-    int zlevel = (level - 1) * 18 / 8 + 1;
+    int zlevel = ((level?:2) - 1) * 18 / 8 + 1;
     assert(zlevel <= 19);
-    if (ZSTD_isError(r = ZSTD_initCStream(stream, zlevel?:3)))
+    if (ZSTD_isError(r = ZSTD_initCStream(stream, zlevel)))
         ERRzstd(fail, in);
     ZSTD_CCtx_setParameter(stream, ZSTD_c_checksumFlag, 1);
 
@@ -691,6 +691,8 @@ compress_info decompressors[]={
 #endif
 #ifdef HAVE_LIBBZ2
 {"bzip2", ".bz2", read_bz2, "BZh01AY&", {0xff,0xff,0xff,0xf0,0xff,0xff,0xff,0xff}},
+// empty file has no BlockHeader
+{"", "/", read_bz2, "BZh0\x17rE8", {0xff,0xff,0xff,0xf0,0xff,0xff,0xff,0xff}},
 #endif
 #ifdef HAVE_LIBLZMA
 {"xz", ".xz",  read_xz, {0xfd,0x37,0x7a,0x58,0x5a}, {0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xf0}},

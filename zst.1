@@ -39,7 +39,7 @@ are a superior choice in any case but especially
 .I gzip
 is entrenched for historical reasons.
 .SH OPTIONS
-.B Operation mode
+.B Mode of operation
 .TP
 .B -z
 Compress (default).  The file will be replaced by a compressed copy with
@@ -88,6 +88,8 @@ is strongest and slowest.  Note that unlike the
 tool, the scale is 1..9 for all algorithms -- level 9 corresponds to what
 .B zstd
 knows as 19.
+
+The defaults are: zst 2, bz2 9, gz 6, xz 6.
 .TP
 .B -v
 List all processed files.  When compressing, the old, new, and percentage
