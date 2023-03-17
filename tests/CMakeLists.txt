@@ -18,6 +18,7 @@ function(compressor TOOL EXT)
 		add_test(NAME ${tn}
 			COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/runtest.sh "${t}")
 		set_tests_properties(${tn} PROPERTIES
+			SKIP_RETURN_CODE 42
 			ENVIRONMENT "TOOL=${TOOL};EXT=${EXT};SRC=${CMAKE_SOURCE_DIR};BIN=${CMAKE_BINARY_DIR}")
 	endforeach()
 endfunction()

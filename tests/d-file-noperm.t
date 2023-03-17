@@ -1,3 +1,4 @@
+[ `whoami` != root ] || exit 42
 cp -p $F file
 $TOOL file
 rm -f file
