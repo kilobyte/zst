@@ -6,7 +6,7 @@ if [ -z "$SRC" ] || [ -z "$BIN" ] || [ -z "$TOOL" ]; then
 	exit 1
 fi
 
-if which >/dev/null 2>/dev/null valgrind; then
+if [ -n "$USE_VALGRIND" ] && which >/dev/null 2>/dev/null valgrind; then
 	VG="valgrind --error-exitcode=43 --leak-check=full --show-leak-kinds=all --errors-for-leak-kinds=all "
 fi
 TESTDIR="$BIN/tests/test-$1-$TOOL"

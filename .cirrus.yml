@@ -4,9 +4,9 @@ ubuntu_amd64_task:
   install_script:
     - apt-get update
     - DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
-    - DEBIAN_FRONTEND=noninteractive apt-get -y install cmake libz-dev libbz2-dev liblzma-dev libzstd-dev bzip2 zstd xz-utils
+    - DEBIAN_FRONTEND=noninteractive apt-get -y install cmake libz-dev libbz2-dev liblzma-dev libzstd-dev bzip2 zstd xz-utils valgrind
   build_script:
     - cmake .
     - make -j$(getconf _NPROCESSORS_ONLN)
   test_script:
-    ctest -j$(getconf _NPROCESSORS_ONLN) --output-on-failure
+    USE_VALGRIND=y ctest -j$(getconf _NPROCESSORS_ONLN) --output-on-failure
