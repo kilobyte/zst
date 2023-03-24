@@ -237,6 +237,7 @@ static const char* guess_prog(void)
         {"bzip2", "bunzip2", "bzcat"},
         {"xz",    "unxz",    "xzcat"},
         {"zstd",  "unzstd",  "zstdcat"},
+        {"zst",   "unzst",   "zstcat"},
         {"bzip3", "bunzip3", "bz3cat"},
         {"lz4",   "unlz4",   "lz4cat"},
         {"lzop",  "",        ""},
