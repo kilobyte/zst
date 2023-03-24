@@ -238,7 +238,7 @@ static const char *gzerr(int e)
 static int read_gz(int in, int out, file_info *restrict fi, char *head)
 {
     z_stream st;
-    int ret;
+    int ret = 0;
     ssize_t len;
     Bytef inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
 
@@ -263,6 +263,11 @@ work:
         fi->sz += st.avail_in;
         do
         {
+            // concatenated stream => reset stream
+            if (ret == Z_STREAM_END)
+                if (ret = inflateReset(&st))
+                    ERRgz(fail, in);
+
             st.next_out  = outbuf;
             st.avail_out = sizeof outbuf;
             if ((ret = inflate(&st, Z_NO_FLUSH)) && ret != Z_STREAM_END)
@@ -271,6 +276,7 @@ work:
             if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
                 ERRlibc(fail, out);
             fi->sd += st.next_out - outbuf;
+
         } while (st.avail_in);
     }
     if (st.avail_in)
