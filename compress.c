@@ -117,6 +117,10 @@ work:
         fi->sz += st.avail_in;
         do
         {
+            if (ret == BZ_STREAM_END)
+                if (ret = BZ2_bzDecompressInit(&st, 0, 0))
+                    ERRbz2(end, in);
+
             st.next_out  = outbuf;
             st.avail_out = sizeof outbuf;
             if ((ret = BZ2_bzDecompress(&st)) && ret != BZ_STREAM_END)
