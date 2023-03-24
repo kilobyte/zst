@@ -711,7 +711,6 @@ compress_info decompressors[]={
 #ifdef HAVE_LIBZSTD
 {"zstd", ".zst",  read_zstd, {0x28,0xb5,0x2f,0xfd}, {0xff,0xff,0xff,0xff}},
 #endif
-{"cat", "/", cat},
 {0, 0, 0},
 };
 
@@ -765,8 +764,11 @@ bool decomp(bool can_cat, int in, int out, file_info*restrict fi)
     }
 
     for (const compress_info *ci = decompressors; ci->comp; ci++)
-        if (verify_magic(buf, ci) && (can_cat || ci->comp!=cat))
+        if (verify_magic(buf, ci))
             return ci->comp(in, out, fi, buf);
+
+    if (can_cat)
+        return cat(in, out, fi, buf);
 
     ERR(err, in, "not a compressed file");
 
