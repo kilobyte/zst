@@ -57,6 +57,17 @@ static void do_file(int dir, const char *name, const char *path, int fd, struct 
     char *name2 = 0;
     compress_info *fcomp = comp;
 
+    if (!op && fd>0 && comp_by_ext(name, compressors) && !force)
+    {
+        if (!quiet)
+        {   // no exit code, either
+            fprintf(stderr, "%s: %s: already has a compression suffix -- unchanged\n", exe, name);
+            if (!err)
+                err = 2;
+        }
+        close(fd);
+        return;
+    }
     if (op && fd>0 && !(fcomp = comp_by_ext(name, decompressors))
         && !(cat && force))
     {
