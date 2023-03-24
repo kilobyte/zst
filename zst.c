@@ -60,11 +60,12 @@ static void do_file(int dir, const char *name, const char *path, int fd, struct 
     if (op && fd>0 && !(fcomp = comp_by_ext(name, decompressors))
         && !(cat && force))
     {
-        if (quiet)
-            return; // no exit code, either
-        fprintf(stderr, "%s: %s: unknown suffix -- ignored\n", exe, name);
-        if (!err)
-            err = 2;
+        if (!quiet)
+        {   // no exit code, either
+            fprintf(stderr, "%s: %s: unknown suffix -- ignored\n", exe, name);
+            if (!err)
+                err = 2;
+        }
         close(fd);
         return;
     }
