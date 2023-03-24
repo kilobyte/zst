@@ -35,3 +35,26 @@ endif()
 if(HAVE_LIBZSTD)
 	compressor(zstd .zst)
 endif()
+
+file(GLOB Tests
+	LIST_DIRECTORIES false
+	CONFIGURE_DEPENDS
+	${CMAKE_CURRENT_SOURCE_DIR}/*.T)
+
+foreach(t ${Tests})
+	string(REGEX REPLACE ".*/([^/]*)\\.T$"
+		"\\1" t
+		${t})
+	set(tn ${t})
+	if(CMAKE_VERSION VERSION_LESS 3.19)
+		string(REPLACE " " "_" tn "${tn}")
+		string(REPLACE "#" "♯" tn "${tn}")
+		string(REPLACE "(" "⦅" tn "${tn}")
+		string(REPLACE ")" "⦆" tn "${tn}")
+	endif()
+	add_test(NAME ${tn}
+		COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/runtest.sh "${t}")
+	set_tests_properties(${tn} PROPERTIES
+		SKIP_RETURN_CODE 42
+		ENVIRONMENT "SRC=${CMAKE_SOURCE_DIR};BIN=${CMAKE_BINARY_DIR}")
+endforeach()
