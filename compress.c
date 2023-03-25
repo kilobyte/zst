@@ -118,8 +118,11 @@ work:
         do
         {
             if (ret == BZ_STREAM_END)
-                if (ret = BZ2_bzDecompressInit(&st, 0, 0))
+                if ((ret = BZ2_bzDecompressEnd(&st))
+                    || (ret = BZ2_bzDecompressInit(&st, 0, 0)))
+                {
                     ERRbz2(end, in);
+                }
 
             st.next_out  = outbuf;
             st.avail_out = sizeof outbuf;
