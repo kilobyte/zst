@@ -217,6 +217,7 @@ static void do_dir(int dir, const char *name, const char *path)
     struct dirent *de;
     while ((de = readdir(d)))
     {
+        // "." or ".."
         if (de->d_name[0]=='.' && (!de->d_name[1] || de->d_name[1]=='.' && !de->d_name[2]))
             continue;
 
