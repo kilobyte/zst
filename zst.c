@@ -22,6 +22,7 @@
 
 #define die(...) do {fprintf(stderr, __VA_ARGS__); exit(1);} while(0)
 #define ARRAYSZ(x) (sizeof(x) / sizeof((x)[0]))
+#define warn(msg, ...) do {if (!quiet) {fprintf(stderr, "%s: " msg, exe, __VA_ARGS__); if (!err) err=2;}} while(0)
 
 const char *exe;
 
@@ -59,24 +60,14 @@ static void do_file(int dir, const char *name, const char *path, int fd, struct 
 
     if (!op && fd>0 && comp_by_ext(name, compressors) && !force)
     {
-        if (!quiet)
-        {   // no exit code, either
-            fprintf(stderr, "%s: %s: already has a compression suffix -- unchanged\n", exe, name);
-            if (!err)
-                err = 2;
-        }
+        warn("%s: already has a compression suffix -- unchanged\n", name);
         close(fd);
         return;
     }
     if (op && fd>0 && !(fcomp = comp_by_ext(name, decompressors))
         && !(cat && force))
     {
-        if (!quiet)
-        {   // no exit code, either
-            fprintf(stderr, "%s: %s: unknown suffix -- ignored\n", exe, name);
-            if (!err)
-                err = 2;
-        }
+        warn("%s: unknown suffix -- ignored\n", name);
         close(fd);
         return;
     }
