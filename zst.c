@@ -176,18 +176,16 @@ closure:
         free(name2);
 }
 
-#define fail(txt, ...) (fprintf(stderr, "%s: " txt, exe, __VA_ARGS__), err=1, close(dirfd), (void)0)
-
 // may be actually a file
 static void do_dir(int dir, const char *name, const char *path)
 {
     int dirfd = openat(dir, name, O_RDONLY|O_NONBLOCK|O_CLOEXEC|O_LARGEFILE);
     if (dirfd == -1)
-        return fail("can't read %s%s: %m\n", path, name);
+        FAIL("can't read %s%s: %m\n", path, name);
 
     struct stat64 sb;
     if (fstat64(dirfd, &sb))
-        return fail("can't stat %s%s: %m\n", path, name);
+        FAIL("can't stat %s%s: %m\n", path, name);
 
     if (S_ISREG(sb.st_mode))
         return do_file(dir, name, path, dirfd, &sb);
@@ -206,12 +204,12 @@ static void do_dir(int dir, const char *name, const char *path)
 
     char *newpath = alloca(strlen(path) + strlen(name) + 2);
     if (!newpath)
-        return fail("out of stack in %s\n", path);
+        FAIL("out of stack in %s\n", path);
     sprintf(newpath, "%s%s/", path, name);
 
     DIR *d = fdopendir(dirfd);
     if (!d)
-        return fail("can't list %s%s: %m\n", path, name);
+        FAIL("can't list %s%s: %m\n", path, name);
 
     struct dirent *de;
     while ((de = readdir(d)))
@@ -230,6 +228,10 @@ static void do_dir(int dir, const char *name, const char *path)
     }
 
     closedir(d);
+    return;
+
+closure:
+    close(dirfd);
 }
 
 static const char* guess_prog(void)
