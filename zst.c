@@ -192,9 +192,17 @@ static void do_dir(int dir, const char *name, const char *path)
     if (S_ISREG(sb.st_mode))
         return do_file(dir, name, path, dirfd, &sb);
     if (!recurse)
-        return fail("%s%s is not a regular file -- ignored\n", path, name);
+    {
+        warn("%s%s is not a regular file -- ignored\n", path, name);
+        close(dirfd);
+        return;
+    }
     if (!S_ISDIR(sb.st_mode))
-        return fail("%s%s is not a directory or a regular file -- ignored\n", path, name);
+    {
+        warn("%s%s is not a directory or a regular file -- ignored\n", path, name);
+        close(dirfd);
+        return;
+    }
 
     char *newpath = alloca(strlen(path) + strlen(name) + 2);
     if (!newpath)
@@ -213,7 +221,10 @@ static void do_dir(int dir, const char *name, const char *path)
             continue;
 
         if (de->d_type!=DT_DIR && de->d_type!=DT_REG && de->d_type!=DT_UNKNOWN)
+        {
+            warn("%s%s is not a directory or a regular file -- ignored\n", path, de->d_name);
             continue;
+        }
 
         do_dir(dirfd, de->d_name, newpath);
     }
