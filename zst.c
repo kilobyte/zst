@@ -201,9 +201,9 @@ static void do_dir(int dir, const char *name, const char *path)
     if (S_ISREG(sb.st_mode))
         return do_file(dir, name, path, dirfd, &sb);
     if (!recurse)
-        return fail("%s%s is not a regular file - ignored\n", path, name);
+        return fail("%s%s is not a regular file -- ignored\n", path, name);
     if (!S_ISDIR(sb.st_mode))
-        return fail("%s%s is not a directory or a regular file - ignored\n", path, name);
+        return fail("%s%s is not a directory or a regular file -- ignored\n", path, name);
 
     char *newpath = alloca(strlen(path) + strlen(name) + 2);
     if (!newpath)
