@@ -460,7 +460,10 @@ static int write_xz(int in, int out, file_info *restrict fi, char *head)
     lzma_stream st = LZMA_STREAM_INIT;
     lzma_ret ret = 0;
 
-    if (lzma_easy_encoder(&st, level?:6, LZMA_CHECK_CRC64))
+    int xzlevel = level?:6;
+    if (xzlevel == 1) // xz level 1 is boring, 0 stands out
+        xzlevel = 0;
+    if (lzma_easy_encoder(&st, xzlevel, LZMA_CHECK_CRC64))
         ERRoom(end, in);
 
     while ((st.avail_in = read(in, (uint8_t*)(st.next_in = inbuf), BUFFER_SIZE)) > 0)
