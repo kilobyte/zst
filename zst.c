@@ -3,6 +3,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <getopt.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -280,7 +281,12 @@ int main(int argc, char **argv)
     const char *prog = guess_prog();
 
     int opt;
-    while ((opt = getopt(argc, argv, "cdzfklnqvrthF:0123456789")) != -1)
+    static const struct option opts[] =
+    {
+        {"fast",		0, 0, '1'},
+        {"best",		0, 0, '9'},
+    };
+    while ((opt = getopt_long(argc, argv, "cdzfklnqvrthF:0123456789", opts, 0)) != -1)
         switch (opt)
         {
         case 'c':
