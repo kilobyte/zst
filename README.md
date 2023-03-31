@@ -32,7 +32,7 @@ This project is only an early (but working!) stab.
  * [ ] threading when multiple files
  * [ ] sparse files
  * [ ] io optimizations
- * [ ] decent test coverage
+ * [x] decent test coverage
  * [ ] dlopen non-essential compressors?
  * [x] behave according to argv[0]
  * [ ] --rsyncable
