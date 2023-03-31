@@ -22,10 +22,21 @@ On the other hand, `libzstd` is **already** essential!  And while we're
 here, there's three other essential compressor libraries: `zlib` `libbz2`
 `liblzma` (xz).  Why not provide all four from a single small binary?
 
+Thus, let's unify popular compressors and avoid weirdness of their
+command-line tools.
+
+Supported formats
+-----------------
+
+ * zst
+ * xz
+ * gz
+ * bz2
+
 Status
 ------
 
-This project is only an early (but working!) stab.
+This tool should be considered of beta quality.
 
  * [x] guess algorithm via header
  * [ ] threaded [de]compression
