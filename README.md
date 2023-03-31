@@ -35,3 +35,4 @@ This project is only an early (but working!) stab.
  * [ ] decent test coverage
  * [ ] dlopen non-essential compressors?
  * [x] behave according to argv[0]
+ * [ ] --rsyncable
