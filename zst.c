@@ -280,7 +280,7 @@ int main(int argc, char **argv)
     const char *prog = guess_prog();
 
     int opt;
-    while ((opt = getopt(argc, argv, "cdzfklnqvrthF:123456789")) != -1)
+    while ((opt = getopt(argc, argv, "cdzfklnqvrthF:0123456789")) != -1)
         switch (opt)
         {
         case 'c':
@@ -317,6 +317,9 @@ int main(int argc, char **argv)
             break;
         case 'F':
             prog = optarg;
+            break;
+        case '0':
+            level = 1;
             break;
         case '1' ... '9':
             level = opt - '0';
