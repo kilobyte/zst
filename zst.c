@@ -246,11 +246,11 @@ static const char* guess_prog(void)
         {"zst",   "unzst",   "zstcat"},
         {"bzip3", "bunzip3", "bz3cat"},
         {"lz4",   "unlz4",   "lz4cat"},
-        {"lzop",  "",        ""},
-        {"brotli","unbrotli",""},
-        {"lzip",  "",        ""},
-        {"pack",  "",        ""},
-        {"compress", "uncompress", ""},
+        {"lzop",  0,         0},
+        {"brotli","unbrotli",0},
+        {"lzip",  0,         0},
+        {"pack",  0,         0},
+        {"compress", "uncompress", 0},
     };
 
     for (int i=0; i<ARRAYSZ(progs); i++)
