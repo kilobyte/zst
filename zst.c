@@ -3,6 +3,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <getopt.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,6 +23,7 @@
 
 #define die(...) do {fprintf(stderr, __VA_ARGS__); exit(1);} while(0)
 #define ARRAYSZ(x) (sizeof(x) / sizeof((x)[0]))
+#define warn(msg, ...) do {if (!quiet) {fprintf(stderr, "%s: " msg, exe, __VA_ARGS__); if (!err) err=2;}} while(0)
 
 const char *exe;
 
@@ -57,14 +59,16 @@ static void do_file(int dir, const char *name, const char *path, int fd, struct 
     char *name2 = 0;
     compress_info *fcomp = comp;
 
+    if (!op && fd>0 && comp_by_ext(name, compressors) && !force)
+    {
+        warn("%s: already has a compression suffix -- unchanged\n", name);
+        close(fd);
+        return;
+    }
     if (op && fd>0 && !(fcomp = comp_by_ext(name, decompressors))
         && !(cat && force))
     {
-        if (quiet)
-            return; // no exit code, either
-        fprintf(stderr, "%s: %s: unknown suffix -- ignored\n", exe, name);
-        if (!err)
-            err = 2;
+        warn("%s: unknown suffix -- ignored\n", name);
         close(fd);
         return;
     }
@@ -173,48 +177,62 @@ closure:
         free(name2);
 }
 
-#define fail(txt, ...) (fprintf(stderr, "%s: " txt, exe, __VA_ARGS__), err=1, close(dirfd), (void)0)
-
 // may be actually a file
 static void do_dir(int dir, const char *name, const char *path)
 {
     int dirfd = openat(dir, name, O_RDONLY|O_NONBLOCK|O_CLOEXEC|O_LARGEFILE);
     if (dirfd == -1)
-        return fail("can't read %s%s: %m\n", path, name);
+        FAIL("can't read %s%s: %m\n", path, name);
 
     struct stat64 sb;
     if (fstat64(dirfd, &sb))
-        return fail("can't stat %s%s: %m\n", path, name);
+        FAIL("can't stat %s%s: %m\n", path, name);
 
     if (S_ISREG(sb.st_mode))
         return do_file(dir, name, path, dirfd, &sb);
     if (!recurse)
-        return fail("%s%s is not a regular file - ignored\n", path, name);
+    {
+        warn("%s%s is not a regular file -- ignored\n", path, name);
+        close(dirfd);
+        return;
+    }
     if (!S_ISDIR(sb.st_mode))
-        return fail("%s%s is not a directory or a regular file - ignored\n", path, name);
+    {
+        warn("%s%s is not a directory or a regular file -- ignored\n", path, name);
+        close(dirfd);
+        return;
+    }
 
     char *newpath = alloca(strlen(path) + strlen(name) + 2);
     if (!newpath)
-        return fail("out of stack in %s\n", path);
+        FAIL("out of stack in %s\n", path);
     sprintf(newpath, "%s%s/", path, name);
 
     DIR *d = fdopendir(dirfd);
     if (!d)
-        return fail("can't list %s%s: %m\n", path, name);
+        FAIL("can't list %s%s: %m\n", path, name);
 
     struct dirent *de;
     while ((de = readdir(d)))
     {
+        // "." or ".."
         if (de->d_name[0]=='.' && (!de->d_name[1] || de->d_name[1]=='.' && !de->d_name[2]))
             continue;
 
         if (de->d_type!=DT_DIR && de->d_type!=DT_REG && de->d_type!=DT_UNKNOWN)
+        {
+            warn("%s%s is not a directory or a regular file -- ignored\n", path, de->d_name);
             continue;
+        }
 
         do_dir(dirfd, de->d_name, newpath);
     }
 
     closedir(d);
+    return;
+
+closure:
+    close(dirfd);
 }
 
 static const char* guess_prog(void)
@@ -225,13 +243,14 @@ static const char* guess_prog(void)
         {"bzip2", "bunzip2", "bzcat"},
         {"xz",    "unxz",    "xzcat"},
         {"zstd",  "unzstd",  "zstdcat"},
+        {"zst",   "unzst",   "zstcat"},
         {"bzip3", "bunzip3", "bz3cat"},
         {"lz4",   "unlz4",   "lz4cat"},
-        {"lzop",  "",        ""},
-        {"brotli","unbrotli",""},
-        {"lzip",  "",        ""},
-        {"pack",  "",        ""},
-        {"compress", "uncompress", ""},
+        {"lzop",  0,         0},
+        {"brotli","unbrotli",0},
+        {"lzip",  0,         0},
+        {"pack",  0,         0},
+        {"compress", "uncompress", 0},
     };
 
     for (int i=0; i<ARRAYSZ(progs); i++)
@@ -262,7 +281,12 @@ int main(int argc, char **argv)
     const char *prog = guess_prog();
 
     int opt;
-    while ((opt = getopt(argc, argv, "cdzfklnqvrthF:123456789")) != -1)
+    static const struct option opts[] =
+    {
+        {"fast",		0, 0, '1'},
+        {"best",		0, 0, '9'},
+    };
+    while ((opt = getopt_long(argc, argv, "cdzfklnqvrthF:0123456789", opts, 0)) != -1)
         switch (opt)
         {
         case 'c':
@@ -299,6 +323,9 @@ int main(int argc, char **argv)
             break;
         case 'F':
             prog = optarg;
+            break;
+        case '0':
+            level = 1;
             break;
         case '1' ... '9':
             level = opt - '0';

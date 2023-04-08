@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdint.h>
 #include <stdlib.h>
 #ifdef HAVE_LIBBZ2
 # include <bzlib.h>
@@ -33,6 +34,9 @@
 
 static int rewrite(int fd, const void *buf, size_t len)
 {
+    if (fd == -1)
+        return 0;
+
     while (len)
     {
         size_t done = write(fd, buf, len);
@@ -116,12 +120,19 @@ work:
         fi->sz += st.avail_in;
         do
         {
+            if (ret == BZ_STREAM_END)
+                if ((ret = BZ2_bzDecompressEnd(&st))
+                    || (ret = BZ2_bzDecompressInit(&st, 0, 0)))
+                {
+                    ERRbz2(end, in);
+                }
+
             st.next_out  = outbuf;
             st.avail_out = sizeof outbuf;
             if ((ret = BZ2_bzDecompress(&st)) && ret != BZ_STREAM_END)
                 ERRbz2(fail, in);
 
-            if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
+            if (rewrite(out, outbuf, st.next_out - outbuf))
                 ERRlibc(fail, out);
             fi->sd += st.next_out - outbuf;
         } while (st.avail_in);
@@ -138,7 +149,7 @@ work:
         st.avail_out = sizeof outbuf;
         ret = BZ2_bzDecompress(&st);
 
-        if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
+        if (rewrite(out, outbuf, st.next_out - outbuf))
             ERRlibc(fail, out);
         fi->sd += st.next_out - outbuf;
     } while (!ret && !st.avail_out);
@@ -237,7 +248,7 @@ static const char *gzerr(int e)
 static int read_gz(int in, int out, file_info *restrict fi, char *head)
 {
     z_stream st;
-    int ret;
+    int ret = 0;
     ssize_t len;
     Bytef inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
 
@@ -262,14 +273,20 @@ work:
         fi->sz += st.avail_in;
         do
         {
+            // concatenated stream => reset stream
+            if (ret == Z_STREAM_END)
+                if (ret = inflateReset(&st))
+                    ERRgz(fail, in);
+
             st.next_out  = outbuf;
             st.avail_out = sizeof outbuf;
             if ((ret = inflate(&st, Z_NO_FLUSH)) && ret != Z_STREAM_END)
                 ERRgz(fail, in);
 
-            if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
+            if (rewrite(out, outbuf, st.next_out - outbuf))
                 ERRlibc(fail, out);
             fi->sd += st.next_out - outbuf;
+
         } while (st.avail_in);
     }
     if (st.avail_in)
@@ -282,7 +299,7 @@ work:
         st.avail_out = sizeof outbuf;
         ret = inflate(&st, Z_FINISH);
 
-        if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
+        if (rewrite(out, outbuf, st.next_out - outbuf))
             ERRlibc(fail, out);
         fi->sd += st.next_out - outbuf;
     } while (!ret);
@@ -407,7 +424,7 @@ work:
             if ((ret = lzma_code(&st, LZMA_RUN)))
                 ERRxz(fail, in);
 
-            if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
+            if (rewrite(out, outbuf, st.next_out - outbuf))
                 ERRlibc(fail, out);
             fi->sd += st.next_out - outbuf;
         } while (st.avail_in);
@@ -422,7 +439,7 @@ work:
         st.avail_out = sizeof(outbuf);
         ret = lzma_code(&st, LZMA_FINISH);
 
-        if (out!=-1 && rewrite(out, outbuf, st.next_out - outbuf))
+        if (rewrite(out, outbuf, st.next_out - outbuf))
             ERRlibc(fail, out);
         fi->sd += st.next_out - outbuf;
     } while (!ret);
@@ -443,7 +460,10 @@ static int write_xz(int in, int out, file_info *restrict fi, char *head)
     lzma_stream st = LZMA_STREAM_INIT;
     lzma_ret ret = 0;
 
-    if (lzma_easy_encoder(&st, level?:6, LZMA_CHECK_CRC64))
+    int xzlevel = level?:6;
+    if (xzlevel == 1) // xz level 1 is boring, 0 stands out
+        xzlevel = 0;
+    if (lzma_easy_encoder(&st, xzlevel, LZMA_CHECK_CRC64))
         ERRoom(end, in);
 
     while ((st.avail_in = read(in, (uint8_t*)(st.next_in = inbuf), BUFFER_SIZE)) > 0)
@@ -537,7 +557,7 @@ work:
                 ERRzstd(fail, in);
             end_of_frame = !r;
             fi->sd += zout.pos;
-            if (out!=-1 && rewrite(out, zout.dst, zout.pos))
+            if (rewrite(out, zout.dst, zout.pos))
                 ERRlibc(fail, out);
         }
     }
@@ -552,7 +572,7 @@ work:
         if (ZSTD_isError(r = ZSTD_decompressStream(stream, &zout, &zin)))
             ERRzstd(fail, in);
         fi->sd += zout.pos;
-        if (out!=-1 && rewrite(out, zout.dst, zout.pos))
+        if (rewrite(out, zout.dst, zout.pos))
             ERRlibc(fail, out);
         // write first, fail later -- hopefully salvaging some data
         if (r)
@@ -670,22 +690,28 @@ end:
 }
 
 compress_info compressors[]={
+#ifdef HAVE_LIBZSTD
+{"zstd", ".zst",  write_zstd},
+#endif
+#ifdef HAVE_LIBLZMA
+{"xz", ".xz",  write_xz},
+#endif
 #ifdef HAVE_LIBZ
 {"gzip", ".gz",  write_gz},
 #endif
 #ifdef HAVE_LIBBZ2
 {"bzip2", ".bz2", write_bz2},
 #endif
-#ifdef HAVE_LIBLZMA
-{"xz", ".xz",  write_xz},
-#endif
-#ifdef HAVE_LIBZSTD
-{"zstd", ".zst",  write_zstd},
-#endif
 {0, 0, 0},
 };
 
 compress_info decompressors[]={
+#ifdef HAVE_LIBZSTD
+{"zstd", ".zst",  read_zstd, {0x28,0xb5,0x2f,0xfd}, {0xff,0xff,0xff,0xff}},
+#endif
+#ifdef HAVE_LIBLZMA
+{"xz", ".xz",  read_xz, {0xfd,0x37,0x7a,0x58,0x5a}, {0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xf0}},
+#endif
 #ifdef HAVE_LIBZ
 {"gzip", ".gz",  read_gz, {0x1f,0x8b,8}, {0xff,0xff,0xff,0xe0}},
 #endif
@@ -694,13 +720,6 @@ compress_info decompressors[]={
 // empty file has no BlockHeader
 {"", "/", read_bz2, "BZh0\x17rE8", {0xff,0xff,0xff,0xf0,0xff,0xff,0xff,0xff}},
 #endif
-#ifdef HAVE_LIBLZMA
-{"xz", ".xz",  read_xz, {0xfd,0x37,0x7a,0x58,0x5a}, {0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xf0}},
-#endif
-#ifdef HAVE_LIBZSTD
-{"zstd", ".zst",  read_zstd, {0x28,0xb5,0x2f,0xfd}, {0xff,0xff,0xff,0xff}},
-#endif
-{"cat", "/", cat},
 {0, 0, 0},
 };
 
@@ -747,15 +766,18 @@ bool decomp(bool can_cat, int in, int out, file_info*restrict fi)
     {
         if (!can_cat)
             ERR(err, in, "not a compressed file");
-        if (out!=-1 && rewrite(out, buf, r))
+        if (rewrite(out, buf, r))
             ERRlibc(err, out);
         fi->sd = fi->sz = r;
         return 0;
     }
 
     for (const compress_info *ci = decompressors; ci->comp; ci++)
-        if (verify_magic(buf, ci) && (can_cat || ci->comp!=cat))
+        if (verify_magic(buf, ci))
             return ci->comp(in, out, fi, buf);
+
+    if (can_cat)
+        return cat(in, out, fi, buf);
 
     ERR(err, in, "not a compressed file");
 
