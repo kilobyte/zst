@@ -669,7 +669,7 @@ static int cat(int in, int out, file_info *restrict fi, char *head)
     }
     if (!r)
         return 0;
-    if (errno != EINVAL && errno != EXDEV) // EXDEV regressed in 5.19
+    if (errno != ENOSYS && errno != EINVAL && errno != EXDEV) // EXDEV regressed in 5.19
         ERRlibc(end, in);
 #endif
 
