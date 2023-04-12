@@ -1,1 +1,1 @@
-! $Z -T doublespace </dev/null >/dev/null
+! $Z -F doublespace </dev/null >/dev/null
