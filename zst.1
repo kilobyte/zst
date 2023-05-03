@@ -9,7 +9,7 @@ The
 .B zst
 command can reduce the size of files by using a number of popular
 compression algorithms; in this version these are
-.IR zstd ", " bzip2 ", " xz ", " gzip
+.IR zstd ", " bzip2 ", " xz ", " gzip ", " bzip3
 -- and decompress them back.
 .P
 While these compressors' native tools may expose more options specific to
@@ -44,7 +44,7 @@ is entrenched for historical reasons.
 .B -z
 Compress (default).  The file will be replaced by a compressed copy with
 an appropriate suffix added:
-.IR .zst / .bz2 / .xz / .gz
+.IR .zst / .bz2 / .xz / .gz / .bz3
 according to the algorithm used.
 .TP
 .B -d
@@ -89,7 +89,7 @@ tool, the scale is 1..9 for all algorithms -- level 9 corresponds to what
 .B zstd
 knows as 19.
 
-The defaults are: zst 2, bz2 9, gz 6, xz 6.
+The defaults are: zst 2, bz2 9, gz 6, xz 6, bz3 5.
 .TP
 .B -v
 List all processed files.  When compressing, the old, new, and percentage
