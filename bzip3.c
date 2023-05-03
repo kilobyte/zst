@@ -35,9 +35,9 @@ static uint32_t get_u32(const void *mem)
     return htole32(bad_endian);
 }
 
-static bool decompress_bz3(int in, int out, file_info *restrict fi, uint32_t blen)
+static uint64_t decompress_bz3(int in, int out, file_info *restrict fi, uint32_t blen)
 {
-    uint32_t bhead[2];
+    uint64_t bhead;
     uint8_t *buffer = 0;
     struct bz3_state *state = bz3_new(blen);
 
@@ -49,7 +49,7 @@ static bool decompress_bz3(int in, int out, file_info *restrict fi, uint32_t ble
 
     while (1)
     {
-        int ret = read(in, bhead, 8);
+        int ret = read(in, &bhead, 8);
         if (ret != 8)
             if (!ret)
                 break;
@@ -57,18 +57,17 @@ static bool decompress_bz3(int in, int out, file_info *restrict fi, uint32_t ble
                 ERRlibc(fail, in);
             else
                 ERRueof(fail, in);
-        uint32_t zlen = htole32(bhead[0]);
-        uint32_t dlen = htole32(bhead[1]);
-#if 0
+        uint32_t *bhead32 = (void*)&bhead;
+        uint32_t zlen = htole32(bhead32[0]);
+        uint32_t dlen = htole32(bhead32[1]);
+
         if (zlen == 0x76335a42)
         {
             bz3_free(state);
             free(buffer);
-            memcpy(shead, bhead, 8);
-            head = (intptr_t)-1; // pointer would be out of scope
-            goto new_stream;
+            return bhead;
         }
-#endif
+
         if (dlen > blen || zlen > blen + 31)
             ERR(fail, in, "file corrupted: inconsistent headers");
 
@@ -93,7 +92,7 @@ static bool decompress_bz3(int in, int out, file_info *restrict fi, uint32_t ble
 fail:
     bz3_free(state);
     free(buffer);
-    return 1;
+    return -1;
 }
 
 int read_bz3(int in, int out, file_info *restrict fi, magic_t head)
@@ -121,8 +120,11 @@ new_stream:
         fi->sz += 9;
     }
 
-    if (!decompress_bz3(in, out, fi, blen))
+    head = decompress_bz3(in, out, fi, blen);
+    if (!head)
         return 0;
+    if (head != -1)
+        goto new_stream;
 
 fail:
     return 1;
