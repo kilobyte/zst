@@ -96,12 +96,12 @@ fail:
     return 1;
 }
 
-int read_bz3(int in, int out, file_info *restrict fi, char *head)
+int read_bz3(int in, int out, file_info *restrict fi, magic_t head)
 {
     uint32_t blen;
     char shead[9];
     if (head)
-        memcpy(shead, head, MLEN);
+        *((magic_t*)shead) = head;
 
 new_stream:
     // Read the stream header.
@@ -161,7 +161,7 @@ end:
     return !!dlen;
 }
 
-int write_bz3(int in, int out, file_info *restrict fi, char *head)
+int write_bz3(int in, int out, file_info *restrict fi, magic_t head)
 {
     static uint32_t bz3_levels[10] =
     {

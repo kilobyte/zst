@@ -1,4 +1,7 @@
 #include <stdbool.h>
+#include <stdint.h>
+
+typedef uint64_t magic_t;
 
 typedef struct
 {
@@ -6,7 +9,7 @@ typedef struct
     unsigned long long sz, sd;
 } file_info;
 
-typedef int(compress_func)(int,int,file_info*restrict,char*);
+typedef int(compress_func)(int,int,file_info*restrict,magic_t);
 
 #define MLEN 8
 typedef struct
@@ -28,5 +31,5 @@ bool decomp(bool can_cat, int in, int out, file_info*restrict fi);
 int match_suffix(const char *txt, const char *ext);
 int rewrite(int fd, const void *buf, size_t len);
 
-int read_bz3(int in, int out, file_info *restrict fi, char *head);
-int write_bz3(int in, int out, file_info *restrict fi, char *head);
+int read_bz3(int in, int out, file_info *restrict fi, magic_t head);
+int write_bz3(int in, int out, file_info *restrict fi, magic_t head);

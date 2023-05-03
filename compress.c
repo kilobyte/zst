@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <stdint.h>
 #include <stdlib.h>
 #ifdef HAVE_LIBBZ2
 # include <bzlib.h>
@@ -94,7 +93,7 @@ static const char *bzerr(int e)
 
 #define ERRbz2(l,f) ERR(l,f,"%s", bzerr(ret))
 
-static int read_bz2(int in, int out, file_info *restrict fi, char *head)
+static int read_bz2(int in, int out, file_info *restrict fi, magic_t head)
 {
     bz_stream st;
     int ret;
@@ -110,7 +109,7 @@ static int read_bz2(int in, int out, file_info *restrict fi, char *head)
             ERRlibc(fail, in);
         st.avail_in += MLEN;
         st.next_in = inbuf;
-        U64(inbuf) = U64(head);
+        U64(inbuf) = head;
         goto work;
     }
 
@@ -167,7 +166,7 @@ end:
     return 1;
 }
 
-static int write_bz2(int in, int out, file_info *restrict fi, char *head)
+static int write_bz2(int in, int out, file_info *restrict fi, magic_t head)
 {
     bz_stream st;
     int ret;
@@ -245,7 +244,7 @@ static const char *gzerr(int e)
 
 #define ERRgz(l,f) ERR(l,f,"%s\n", gzerr(ret))
 
-static int read_gz(int in, int out, file_info *restrict fi, char *head)
+static int read_gz(int in, int out, file_info *restrict fi, magic_t head)
 {
     z_stream st;
     int ret = 0;
@@ -262,7 +261,7 @@ static int read_gz(int in, int out, file_info *restrict fi, char *head)
             ERRlibc(fail, in);
         st.avail_in = len + MLEN;
         st.next_in = inbuf;
-        U64(inbuf) = U64(head);
+        U64(inbuf) = head;
         goto work;
     }
 
@@ -314,7 +313,7 @@ end:
     return 1;
 }
 
-static int write_gz(int in, int out, file_info *restrict fi, char *head)
+static int write_gz(int in, int out, file_info *restrict fi, magic_t head)
 {
     z_stream st;
     int ret;
@@ -394,7 +393,7 @@ static const char *xzerr(lzma_ret e)
 
 #define ERRxz(l,f) ERR(l,f, "%s\n", xzerr(ret))
 
-static int read_xz(int in, int out, file_info *restrict fi, char *head)
+static int read_xz(int in, int out, file_info *restrict fi, magic_t head)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
     lzma_stream st = LZMA_STREAM_INIT;
@@ -409,7 +408,7 @@ static int read_xz(int in, int out, file_info *restrict fi, char *head)
             ERRlibc(fail, in);
         st.avail_in += MLEN;
         st.next_in = inbuf;
-        U64(inbuf) = U64(head);
+        U64(inbuf) = head;
         goto work;
     }
 
@@ -454,7 +453,7 @@ end:
     return 1;
 }
 
-static int write_xz(int in, int out, file_info *restrict fi, char *head)
+static int write_xz(int in, int out, file_info *restrict fi, magic_t head)
 {
     uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
     lzma_stream st = LZMA_STREAM_INIT;
@@ -511,7 +510,7 @@ end:
 #ifdef HAVE_LIBZSTD
 #define ERRzstd(l,f) ERR(l,f, "%s\n", ZSTD_getErrorName(r))
 
-static int read_zstd(int in, int out, file_info *restrict fi, char *head)
+static int read_zstd(int in, int out, file_info *restrict fi, magic_t head)
 {
     int err = 1;
     ZSTD_inBuffer  zin;
@@ -538,7 +537,7 @@ static int read_zstd(int in, int out, file_info *restrict fi, char *head)
         if ((r = read(in, (char*)zin.src + MLEN, inbufsz - MLEN)) == -1)
             ERRlibc(fail, in);
         r += MLEN;
-        U64(zin.src) = U64(head);
+        U64(zin.src) = head;
         goto work;
     }
 
@@ -588,7 +587,7 @@ end:
     return err;
 }
 
-static int write_zstd(int in, int out, file_info *restrict fi, char *head)
+static int write_zstd(int in, int out, file_info *restrict fi, magic_t head)
 {
     int err = 1;
     ZSTD_inBuffer  zin;
@@ -648,17 +647,15 @@ end:
 # undef ERRzstd
 #endif
 
-static int cat(int in, int out, file_info *restrict fi, char *head)
+static int cat(int in, int out, file_info *restrict fi, magic_t head)
 {
     if (out == -1)
         return 0;
 
-    if (head)
-    {
-        if (rewrite(out, head, MLEN))
-            ERRlibc(end, out);
-        fi->sz = fi->sd = MLEN;
-    }
+    // hack: head might be 0 but cat always gets it
+    if (rewrite(out, &head, MLEN))
+        ERRlibc(end, out);
+    fi->sz = fi->sd = MLEN;
 
     ssize_t r;
 #ifdef HAVE_COPY_FILE_RANGE
@@ -757,33 +754,33 @@ compress_info *comp_by_name(const char *name, compress_info *ci)
     return 0;
 }
 
-static bool verify_magic(const char *bytes, const compress_info *comp)
+static bool verify_magic(magic_t head, const compress_info *comp)
 {
-    return (U64(bytes) & U64(comp->magicmask)) == U64(comp->magic);
+    return (head & U64(comp->magicmask)) == U64(comp->magic);
 }
 
 bool decomp(bool can_cat, int in, int out, file_info*restrict fi)
 {
-    char buf[MLEN];
-    ssize_t r = read(in, buf, MLEN);
+    uint64_t head;
+    ssize_t r = read(in, &head, MLEN);
     if (r == -1)
         ERRlibc(err, in);
     if (r < MLEN) // shortest legal file is 9 bytes (zstd w/o checksum)
     {
         if (!can_cat)
             ERR(err, in, "not a compressed file");
-        if (rewrite(out, buf, r))
+        if (rewrite(out, &head, r))
             ERRlibc(err, out);
         fi->sd = fi->sz = r;
         return 0;
     }
 
     for (const compress_info *ci = decompressors; ci->comp; ci++)
-        if (verify_magic(buf, ci))
-            return ci->comp(in, out, fi, buf);
+        if (verify_magic(head, ci))
+            return ci->comp(in, out, fi, head);
 
     if (can_cat)
-        return cat(in, out, fi, buf);
+        return cat(in, out, fi, head);
 
     ERR(err, in, "not a compressed file");
 
