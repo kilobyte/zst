@@ -32,6 +32,7 @@ Supported formats
  * xz
  * gz
  * bz2
+ * bz3
 
 Status
 ------

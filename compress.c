@@ -32,7 +32,7 @@
 #define ERRueof(l,f) ERR(l,f,"unexpected end of file")
 #define ERRlibc(l,f) ERR(l,f,"%m")
 
-static int rewrite(int fd, const void *buf, size_t len)
+int rewrite(int fd, const void *buf, size_t len)
 {
     if (fd == -1)
         return 0;
@@ -693,6 +693,9 @@ compress_info compressors[]={
 #ifdef HAVE_LIBZSTD
 {"zstd", ".zst",  write_zstd},
 #endif
+#ifdef HAVE_LIBBZ3
+{"bzip3", ".bz3", write_bz3},
+#endif
 #ifdef HAVE_LIBLZMA
 {"xz", ".xz",  write_xz},
 #endif
@@ -708,6 +711,9 @@ compress_info compressors[]={
 compress_info decompressors[]={
 #ifdef HAVE_LIBZSTD
 {"zstd", ".zst",  read_zstd, {0x28,0xb5,0x2f,0xfd}, {0xff,0xff,0xff,0xff}},
+#endif
+#ifdef HAVE_LIBBZ3
+{"bzip3", ".bz3", read_bz3, "BZ3v1", {0xff,0xff,0xff,0xff,0xff}},
 #endif
 #ifdef HAVE_LIBLZMA
 {"xz", ".xz",  read_xz, {0xfd,0x37,0x7a,0x58,0x5a}, {0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xf0}},

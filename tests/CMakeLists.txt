@@ -35,6 +35,9 @@ endif()
 if(HAVE_LIBZSTD)
 	compressor(zstd .zst)
 endif()
+if(HAVE_LIBBZ3)
+	compressor(bzip3 .bz3)
+endif()
 
 file(GLOB Tests
 	LIST_DIRECTORIES false

@@ -22,6 +22,7 @@ find_lib(Z z gzread)
 find_lib(BZ2 bz2 BZ2_bzBuffToBuffCompress)
 find_lib(LZMA lzma lzma_code)
 find_lib(ZSTD zstd ZSTD_compress)
+find_lib(BZ3 bzip3 bz3_version)
 CHECK_FUNCTION_EXISTS(copy_file_range HAVE_COPY_FILE_RANGE)
 CHECK_FUNCTION_EXISTS(stat64 HAVE_STAT64)
 
@@ -38,6 +39,7 @@ configure_file(config.h.cmake ${CMAKE_BINARY_DIR}/config.h)
 include_directories(${CMAKE_BINARY_DIR})
 
 set(zst_sources
+	bzip3.c
 	compress.c
 	zst.c
 )
