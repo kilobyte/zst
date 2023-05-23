@@ -1,5 +1,6 @@
 cp -p $F file
-$TOOL -k file
-$Z -f file
+touch file$EXT
+$Z -F $TOOL -f file
+ls -l file*
 $Z -df file$EXT
 cmp -b $F file
