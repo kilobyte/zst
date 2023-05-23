@@ -1,3 +1,3 @@
 cp -p $F file
-$TOOL -k file
+touch file$EXT
 ! $Z -d file$EXT
