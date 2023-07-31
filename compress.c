@@ -105,7 +105,7 @@ static int read_bz2(int in, int out, file_info *restrict fi, magic_t head)
 
     if (head)
     {
-        if ((st.avail_in = read(in, inbuf + MLEN, BUFFER_SIZE - MLEN)) == -1)
+        if ((st.avail_in = read(in, inbuf + MLEN, sizeof inbuf - MLEN)) == -1)
             ERRlibc(fail, in);
         st.avail_in += MLEN;
         st.next_in = inbuf;
@@ -113,7 +113,7 @@ static int read_bz2(int in, int out, file_info *restrict fi, magic_t head)
         goto work;
     }
 
-    while ((st.avail_in = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
+    while ((st.avail_in = read(in, st.next_in = inbuf, sizeof inbuf)) > 0)
     {
 work:
         fi->sz += st.avail_in;
@@ -176,13 +176,13 @@ static int write_bz2(int in, int out, file_info *restrict fi, magic_t head)
     if ((ret = BZ2_bzCompressInit(&st, level?:9, 0, 0)))
         ERRbz2(end, in);
 
-    while ((st.avail_in = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
+    while ((st.avail_in = read(in, st.next_in = inbuf, sizeof inbuf)) > 0)
     {
         fi->sd += st.avail_in;
         do
         {
             st.next_out  = outbuf;
-            st.avail_out = sizeof(outbuf);
+            st.avail_out = sizeof outbuf;
             if ((ret = BZ2_bzCompress(&st, BZ_RUN)) && ret != BZ_RUN_OK)
                 ERRbz2(fail, in);
 
@@ -198,7 +198,7 @@ static int write_bz2(int in, int out, file_info *restrict fi, magic_t head)
     do
     {
         st.next_out  = outbuf;
-        st.avail_out = sizeof(outbuf);
+        st.avail_out = sizeof outbuf;
         ret = BZ2_bzCompress(&st, BZ_FINISH);
 
         if (rewrite(out, outbuf, st.next_out - outbuf))
@@ -257,7 +257,7 @@ static int read_gz(int in, int out, file_info *restrict fi, magic_t head)
 
     if (head)
     {
-        if ((len = read(in, inbuf + MLEN, BUFFER_SIZE - MLEN)) == -1)
+        if ((len = read(in, inbuf + MLEN, sizeof inbuf - MLEN)) == -1)
             ERRlibc(fail, in);
         st.avail_in = len + MLEN;
         st.next_in = inbuf;
@@ -265,7 +265,7 @@ static int read_gz(int in, int out, file_info *restrict fi, magic_t head)
         goto work;
     }
 
-    while ((len = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
+    while ((len = read(in, st.next_in = inbuf, sizeof inbuf)) > 0)
     {
         st.avail_in = len;
 work:
@@ -324,14 +324,14 @@ static int write_gz(int in, int out, file_info *restrict fi, magic_t head)
     if ((ret = deflateInit2(&st, level?:6, Z_DEFLATED, 31, 9, 0)))
         ERRgz(end, in);
 
-    while ((len = read(in, st.next_in = inbuf, BUFFER_SIZE)) > 0)
+    while ((len = read(in, st.next_in = inbuf, sizeof inbuf)) > 0)
     {
         st.avail_in = len;
         fi->sd += len;
         do
         {
             st.next_out  = outbuf;
-            st.avail_out = sizeof(outbuf);
+            st.avail_out = sizeof outbuf;
             if ((ret = deflate(&st, Z_NO_FLUSH)))
                 ERRgz(fail, in);
 
@@ -347,7 +347,7 @@ static int write_gz(int in, int out, file_info *restrict fi, magic_t head)
     do
     {
         st.next_out  = outbuf;
-        st.avail_out = sizeof(outbuf);
+        st.avail_out = sizeof outbuf;
         ret = deflate(&st, Z_FINISH);
 
         if (rewrite(out, outbuf, st.next_out - outbuf))
@@ -404,7 +404,7 @@ static int read_xz(int in, int out, file_info *restrict fi, magic_t head)
 
     if (head)
     {
-        if ((st.avail_in = read(in, inbuf + MLEN, BUFFER_SIZE - MLEN)) == -1)
+        if ((st.avail_in = read(in, inbuf + MLEN, sizeof inbuf - MLEN)) == -1)
             ERRlibc(fail, in);
         st.avail_in += MLEN;
         st.next_in = inbuf;
@@ -412,14 +412,14 @@ static int read_xz(int in, int out, file_info *restrict fi, magic_t head)
         goto work;
     }
 
-    while ((st.avail_in = read(in, (uint8_t*)(st.next_in = inbuf), BUFFER_SIZE)) > 0)
+    while ((st.avail_in = read(in, (uint8_t*)(st.next_in = inbuf), sizeof inbuf)) > 0)
     {
 work:
         fi->sz += st.avail_in;
         do
         {
             st.next_out  = outbuf;
-            st.avail_out = sizeof(outbuf);
+            st.avail_out = sizeof outbuf;
             if ((ret = lzma_code(&st, LZMA_RUN)))
                 ERRxz(fail, in);
 
@@ -435,7 +435,7 @@ work:
     do
     {
         st.next_out  = outbuf;
-        st.avail_out = sizeof(outbuf);
+        st.avail_out = sizeof outbuf;
         ret = lzma_code(&st, LZMA_FINISH);
 
         if (rewrite(out, outbuf, st.next_out - outbuf))
@@ -465,13 +465,13 @@ static int write_xz(int in, int out, file_info *restrict fi, magic_t head)
     if (lzma_easy_encoder(&st, xzlevel, LZMA_CHECK_CRC64))
         ERRoom(end, in);
 
-    while ((st.avail_in = read(in, (uint8_t*)(st.next_in = inbuf), BUFFER_SIZE)) > 0)
+    while ((st.avail_in = read(in, (uint8_t*)(st.next_in = inbuf), sizeof inbuf)) > 0)
     {
         fi->sd += st.avail_in;
         do
         {
             st.next_out  = outbuf;
-            st.avail_out = sizeof(outbuf);
+            st.avail_out = sizeof outbuf;
             if ((ret = lzma_code(&st, LZMA_RUN)))
                 ERRxz(fail, in);
 
@@ -487,7 +487,7 @@ static int write_xz(int in, int out, file_info *restrict fi, magic_t head)
     do
     {
         st.next_out  = outbuf;
-        st.avail_out = sizeof(outbuf);
+        st.avail_out = sizeof outbuf;
         ret = lzma_code(&st, LZMA_FINISH);
 
         if (rewrite(out, outbuf, st.next_out - outbuf))
