@@ -22,8 +22,6 @@
 
 #ifdef HAVE_LIBBZ3
 #define ERRbz3(l,f) do {GRIPE(f, "%s\n", bz3_strerror(state));goto l;} while (0)
-#define KB 1024
-#define MB 1048576
 // 65KB..511MB is weird but that's what upstream decreed.
 #define MIN_BLOCK (65*KB)
 #define MAX_BLOCK (511*MB)

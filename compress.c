@@ -395,7 +395,7 @@ static const char *xzerr(lzma_ret e)
 
 static int read_xz(int in, int out, file_info *restrict fi, magic_t head)
 {
-    uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
+    uint8_t inbuf[1*MB], outbuf[1*MB];
     lzma_stream st = LZMA_STREAM_INIT;
     lzma_ret ret = 0;
 
@@ -455,7 +455,7 @@ end:
 
 static int write_xz(int in, int out, file_info *restrict fi, magic_t head)
 {
-    uint8_t inbuf[BUFFER_SIZE], outbuf[BUFFER_SIZE];
+    uint8_t inbuf[1*MB], outbuf[1*MB];
     lzma_stream st = LZMA_STREAM_INIT;
     lzma_ret ret = 0;
 
