@@ -242,7 +242,7 @@ static const char *gzerr(int e)
     }
 }
 
-#define ERRgz(l,f) ERR(l,f,"%s\n", gzerr(ret))
+#define ERRgz(l,f) ERR(l,f,"%s", gzerr(ret))
 
 static int read_gz(int in, int out, file_info *restrict fi, magic_t head)
 {
@@ -391,7 +391,7 @@ static const char *xzerr(lzma_ret e)
     }
 }
 
-#define ERRxz(l,f) ERR(l,f, "%s\n", xzerr(ret))
+#define ERRxz(l,f) ERR(l,f, "%s", xzerr(ret))
 
 static int read_xz(int in, int out, file_info *restrict fi, magic_t head)
 {
@@ -508,7 +508,7 @@ end:
 #endif
 
 #ifdef HAVE_LIBZSTD
-#define ERRzstd(l,f) ERR(l,f, "%s\n", ZSTD_getErrorName(r))
+#define ERRzstd(l,f) ERR(l,f, "%s", ZSTD_getErrorName(r))
 
 static int read_zstd(int in, int out, file_info *restrict fi, magic_t head)
 {
