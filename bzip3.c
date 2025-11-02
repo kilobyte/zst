@@ -41,7 +41,8 @@ static uint64_t decompress_bz3(int in, int out, file_info *restrict fi, uint32_t
 
     if (!state)
         ERRoom(fail, in);
-    buffer = malloc(bz3_bound(blen));
+    size_t buffer_size = bz3_bound(blen);
+    buffer = malloc(buffer_size);
     if (!buffer)
         ERRoom(fail, in);
 
@@ -68,6 +69,8 @@ static uint64_t decompress_bz3(int in, int out, file_info *restrict fi, uint32_t
 
         if (dlen > blen || zlen > blen + 31)
             ERR(fail, in, "file corrupted: inconsistent headers");
+        if (zlen > buffer_size) // can't happen unless the library is bonkers
+            ERR(fail, in, "file corrupted: zlen > bz3_bound");
 
         ssize_t iolen = read(in, buffer, zlen);
         if (iolen != zlen)
@@ -75,7 +78,7 @@ static uint64_t decompress_bz3(int in, int out, file_info *restrict fi, uint32_t
                 ERRlibc(fail, in);
             else
                 ERRueof(fail, in);
-        if (bz3_decode_block(state, buffer, zlen, dlen) != dlen)
+        if (bz3_decode_block(state, buffer, buffer_size, zlen, dlen) != dlen)
             ERR(fail, in, "file corrupted: %s", bz3_strerror(state));
         if (rewrite(out, buffer, dlen))
             ERRlibc(fail, out);
